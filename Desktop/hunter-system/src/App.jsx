@@ -2,13 +2,22 @@ import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
-const QUESTS = [
-  { id: 1, name: "10 push-ups", xp: 50 },
-  { id: 2, name: "10 sit-ups", xp: 50 },
-  { id: 3, name: "1km run", xp: 60 },
-  { id: 4, name: "10 pull-ups", xp: 75 },
-  { id: 5, name: "20 squats", xp: 60 },
-  { id: 6, name: "1 min plank", xp: 40 },
+const HOME_QUESTS = [
+  { id: 1, name: "10 push-ups", xp: 50, mode: "home" },
+  { id: 2, name: "10 sit-ups", xp: 50, mode: "home" },
+  { id: 3, name: "1km run", xp: 60, mode: "both" },
+  { id: 4, name: "20 squats", xp: 60, mode: "home" },
+  { id: 5, name: "1 min plank", xp: 40, mode: "both" },
+  { id: 6, name: "10 lunges", xp: 50, mode: "home" },
+];
+
+const GYM_QUESTS = [
+  { id: 1, name: "Bench press 3x10", xp: 75, mode: "gym" },
+  { id: 2, name: "Squat 3x10", xp: 75, mode: "gym" },
+  { id: 3, name: "1km run", xp: 60, mode: "both" },
+  { id: 4, name: "Pull-ups 3x8", xp: 70, mode: "gym" },
+  { id: 5, name: "1 min plank", xp: 40, mode: "both" },
+  { id: 6, name: "Deadlift 3x8", xp: 80, mode: "gym" },
 ];
 
 const RANKS = [
@@ -51,7 +60,7 @@ function AuthScreen() {
         await supabase.from("profiles").insert({
           id: data.user.id,
           username: username || email.split("@")[0],
-          total_xp: 0, level: 1, strength: 10, endurance: 10, vitality: 10, agility: 10,
+          total_xp: 0, level: 1, strength: 10, endurance: 10, vitality: 10, agility: 10, mode: "home", streak: 0,
         });
         setMessage("Account created! Check your email to confirm, then log in.");
         setIsLogin(true);
@@ -98,129 +107,147 @@ function AuthScreen() {
   );
 }
 
-function ProgressCharts({ user, profile, onClose }) {
-  const [weightData, setWeightData] = useState([]);
-  const [xpData, setXpData] = useState([]);
-  const [questData, setQuestData] = useState([]);
-  const [loading, setLoading] = useState(true);
+function QuestLibrary({ user, profile, onClose }) {
+  const [quests, setQuests] = useState([]);
+  const [myQuests, setMyQuests] = useState([]);
+  const [form, setForm] = useState({ name: "", description: "", xp: "50", category: "strength", mode: "both" });
+  const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState("browse");
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
-    setLoading(true);
-    const { data: bodyLogs } = await supabase.from("body_logs").select("logged_date, weight_kg").eq("user_id", user.id).order("logged_date", { ascending: true }).limit(30);
-    if (bodyLogs) setWeightData(bodyLogs.filter(d => d.weight_kg).map(d => ({ date: d.logged_date.slice(5), weight: parseFloat(d.weight_kg) })));
-
-    const { data: questLogs } = await supabase.from("quest_completions").select("completed_date").eq("user_id", user.id).order("completed_date", { ascending: true });
-    if (questLogs) {
-      const counts = {};
-      questLogs.forEach(q => { counts[q.completed_date] = (counts[q.completed_date] || 0) + 1; });
-      setQuestData(Object.entries(counts).slice(-14).map(([date, count]) => ({ date: date.slice(5), quests: count })));
-    }
-
-    const { data: nutLogs } = await supabase.from("nutrition_logs").select("logged_date, calories").eq("user_id", user.id).order("logged_date", { ascending: true });
-    if (nutLogs) {
-      const cals = {};
-      nutLogs.forEach(n => { cals[n.logged_date] = (cals[n.logged_date] || 0) + (n.calories || 0); });
-      setXpData(Object.entries(cals).slice(-14).map(([date, cal]) => ({ date: date.slice(5), calories: cal })));
-    }
-    setLoading(false);
+    const { data: q } = await supabase.from("custom_quests").select("*").order("likes", { ascending: false });
+    setQuests(q || []);
+    const { data: mine } = await supabase.from("user_custom_quests").select("quest_id").eq("user_id", user.id);
+    setMyQuests(mine ? mine.map(m => m.quest_id) : []);
   }
 
-  const level = profile?.level || 1;
-  const totalXP = profile?.total_xp || 0;
-  const rank = getRank(level);
+  async function createQuest() {
+    if (!form.name) return;
+    setSaving(true);
+    await supabase.from("custom_quests").insert({
+      created_by: user.id,
+      creator_name: profile?.username || "Hunter",
+      name: form.name,
+      description: form.description,
+      xp: parseInt(form.xp),
+      category: form.category,
+      mode: form.mode,
+      likes: 0,
+    });
+    setForm({ name: "", description: "", xp: "50", category: "strength", mode: "both" });
+    loadData();
+    setSaving(false);
+    setTab("browse");
+  }
+
+  async function toggleQuest(questId) {
+    if (myQuests.includes(questId)) {
+      await supabase.from("user_custom_quests").delete().eq("user_id", user.id).eq("quest_id", questId);
+    } else {
+      await supabase.from("user_custom_quests").insert({ user_id: user.id, quest_id: questId });
+    }
+    loadData();
+  }
+
+  async function likeQuest(questId) {
+    await supabase.from("quest_likes").insert({ user_id: user.id, quest_id: questId });
+    await supabase.from("custom_quests").update({ likes: (quests.find(q => q.id === questId)?.likes || 0) + 1 }).eq("id", questId);
+    loadData();
+  }
+
+  const filtered = quests.filter(q => filter === "all" || q.mode === filter || q.mode === "both");
+
+  const categories = ["strength", "cardio", "flexibility", "core", "general"];
 
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Progress</div>
-          <div style={{ fontSize: 12, color: "#534AB7" }}>Your hunter journey</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Quest Library</div>
+          <div style={{ fontSize: 12, color: "#534AB7" }}>Browse & create quests</div>
         </div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#534AB7" }}>Loading charts...</div>
-      ) : (
-        <div style={{ padding: "16px 20px" }}>
+      <div style={{ display: "flex", background: "#0f0f1a", borderBottom: "1px solid #1e1e2e" }}>
+        {[["browse", "Browse"], ["create", "Create"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "12px", border: "none", background: "transparent", color: tab === id ? "#AFA9EC" : "#555", borderBottom: tab === id ? "2px solid #534AB7" : "2px solid transparent", cursor: "pointer", fontSize: 14 }}>{label}</button>
+        ))}
+      </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
-            {[["Level", level], ["Total XP", totalXP], ["Rank", rank.rank]].map(([label, val]) => (
-              <div key={label} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 500, color: "#AFA9EC" }}>{val}</div>
-                <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{label}</div>
-              </div>
+      {tab === "browse" && (
+        <div style={{ padding: "14px 20px" }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            {[["all", "All"], ["home", "🏠 Home"], ["gym", "🏋️ Gym"], ["both", "Both"]].map(([val, label]) => (
+              <button key={val} onClick={() => setFilter(val)} style={{ padding: "6px 12px", borderRadius: 20, border: `1px solid ${filter === val ? "#534AB7" : "#1e1e2e"}`, background: filter === val ? "#1a1035" : "transparent", color: filter === val ? "#AFA9EC" : "#555", cursor: "pointer", fontSize: 12 }}>{label}</button>
             ))}
           </div>
-
-          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Weight over time (kg)</div>
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 12 }}>From your body logs</div>
-            {weightData.length < 2 ? (
-              <div style={{ textAlign: "center", padding: "20px 0", color: "#444", fontSize: 13 }}>Log at least 2 body measurements to see your weight chart</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={weightData}>
-                  <XAxis dataKey="date" tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
-                  <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, color: "#e8e8f0" }} />
-                  <Line type="monotone" dataKey="weight" stroke="#534AB7" strokeWidth={2} dot={{ fill: "#534AB7", r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Daily quests completed</div>
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 12 }}>Last 14 days</div>
-            {questData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "20px 0", color: "#444", fontSize: 13 }}>Complete some quests to see your activity</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={questData}>
-                  <XAxis dataKey="date" tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, color: "#e8e8f0" }} />
-                  <Bar dataKey="quests" fill="#534AB7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Daily calories</div>
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 12 }}>Last 14 days</div>
-            {xpData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "20px 0", color: "#444", fontSize: 13 }}>Log some meals to see your calorie chart</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={xpData}>
-                  <XAxis dataKey="date" tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, color: "#e8e8f0" }} />
-                  <Bar dataKey="calories" fill="#AFA9EC" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px" }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Rank progression</div>
-            {RANKS.map((r) => (
-              <div key={r.rank} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 6, background: level >= r.minLevel ? "#1a1035" : "#0a0a0f", border: `1px solid ${level >= r.minLevel ? "#534AB7" : "#1e1e2e"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: level >= r.minLevel ? "#AFA9EC" : "#333", fontWeight: 500 }}>{r.rank}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, color: level >= r.minLevel ? "#e8e8f0" : "#444" }}>{r.title}</div>
-                  <div style={{ fontSize: 11, color: "#444" }}>Level {r.minLevel}+</div>
+          {filtered.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: "#444" }}>No quests yet — be the first to create one!</div>}
+          {filtered.map((q) => {
+            const added = myQuests.includes(q.id);
+            return (
+              <div key={q.id} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{q.name}</div>
+                    {q.description && <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{q.description}</div>}
+                  </div>
+                  <span style={{ fontSize: 12, color: "#534AB7", fontWeight: 500 }}>+{q.xp} XP</span>
                 </div>
-                {level >= r.minLevel && <span style={{ fontSize: 12, color: "#534AB7" }}>✓ Unlocked</span>}
-                {level < r.minLevel && <span style={{ fontSize: 11, color: "#333" }}>{r.minLevel - level} levels away</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: "#444" }}>by {q.creator_name}</span>
+                  <span style={{ fontSize: 11, background: "#1a1a2e", padding: "2px 6px", borderRadius: 4, color: "#666" }}>{q.mode}</span>
+                  <span style={{ fontSize: 11, background: "#1a1a2e", padding: "2px 6px", borderRadius: 4, color: "#666" }}>{q.category}</span>
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                    <button onClick={() => likeQuest(q.id)} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 6, padding: "4px 8px", color: "#666", cursor: "pointer", fontSize: 12 }}>♥ {q.likes}</button>
+                    <button onClick={() => toggleQuest(q.id)} style={{ background: added ? "#1a1035" : "#534AB7", border: "none", borderRadius: 6, padding: "4px 10px", color: "#fff", cursor: "pointer", fontSize: 12 }}>{added ? "✓ Added" : "+ Add"}</button>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+      )}
 
+      {tab === "create" && (
+        <div style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>Create a Quest</div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Quest Name</div>
+            <input value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. 20 push-ups" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Description (optional)</div>
+            <input value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Any tips or details..." style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>XP Reward</div>
+              <input value={form.xp} onChange={(e) => setForm(p => ({ ...p, xp: e.target.value }))} type="number" placeholder="50" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Mode</div>
+              <select value={form.mode} onChange={(e) => setForm(p => ({ ...p, mode: e.target.value }))} style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }}>
+                <option value="both">Both</option>
+                <option value="home">Home</option>
+                <option value="gym">Gym</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Category</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setForm(p => ({ ...p, category: cat }))} style={{ padding: "6px 12px", borderRadius: 20, border: `1px solid ${form.category === cat ? "#534AB7" : "#1e1e2e"}`, background: form.category === cat ? "#1a1035" : "transparent", color: form.category === cat ? "#AFA9EC" : "#555", cursor: "pointer", fontSize: 12, textTransform: "capitalize" }}>{cat}</button>
+              ))}
+            </div>
+          </div>
+          <button onClick={createQuest} disabled={saving || !form.name} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
+            {saving ? "Creating..." : "Create & Share Quest"}
+          </button>
         </div>
       )}
     </div>
@@ -284,7 +311,7 @@ function BodyLogger({ user, onClose }) {
           <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Notes (optional)</div>
           <input value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="How are you feeling today?" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
         </div>
-        <button onClick={saveLog} disabled={saving} style={{ width: "100%", marginTop: 14, background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer", transition: "background 0.3s" }}>
+        <button onClick={saveLog} disabled={saving} style={{ width: "100%", marginTop: 14, background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
           {saved ? "✓ Saved!" : saving ? "Saving..." : "Save Measurements"}
         </button>
       </div>
@@ -459,6 +486,101 @@ function NutritionTracker({ user, onClose }) {
   );
 }
 
+function ProgressCharts({ user, profile, onClose }) {
+  const [weightData, setWeightData] = useState([]);
+  const [questData, setQuestData] = useState([]);
+  const [xpData, setXpData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadData(); }, []);
+
+  async function loadData() {
+    setLoading(true);
+    const { data: bodyLogs } = await supabase.from("body_logs").select("logged_date, weight_kg").eq("user_id", user.id).order("logged_date", { ascending: true }).limit(30);
+    if (bodyLogs) setWeightData(bodyLogs.filter(d => d.weight_kg).map(d => ({ date: d.logged_date.slice(5), weight: parseFloat(d.weight_kg) })));
+    const { data: questLogs } = await supabase.from("quest_completions").select("completed_date").eq("user_id", user.id).order("completed_date", { ascending: true });
+    if (questLogs) {
+      const counts = {};
+      questLogs.forEach(q => { counts[q.completed_date] = (counts[q.completed_date] || 0) + 1; });
+      setQuestData(Object.entries(counts).slice(-14).map(([date, count]) => ({ date: date.slice(5), quests: count })));
+    }
+    const { data: nutLogs } = await supabase.from("nutrition_logs").select("logged_date, calories").eq("user_id", user.id).order("logged_date", { ascending: true });
+    if (nutLogs) {
+      const cals = {};
+      nutLogs.forEach(n => { cals[n.logged_date] = (cals[n.logged_date] || 0) + (n.calories || 0); });
+      setXpData(Object.entries(cals).slice(-14).map(([date, cal]) => ({ date: date.slice(5), calories: cal })));
+    }
+    setLoading(false);
+  }
+
+  const level = profile?.level || 1;
+  const totalXP = profile?.total_xp || 0;
+  const rank = getRank(level);
+
+  return (
+    <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
+      <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Progress</div>
+          <div style={{ fontSize: 12, color: "#534AB7" }}>Your hunter journey</div>
+        </div>
+      </div>
+      {loading ? <div style={{ textAlign: "center", padding: 40, color: "#534AB7" }}>Loading charts...</div> : (
+        <div style={{ padding: "16px 20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+            {[["Level", level], ["Total XP", totalXP], ["Rank", rank.rank]].map(([label, val]) => (
+              <div key={label} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px", textAlign: "center" }}>
+                <div style={{ fontSize: 20, fontWeight: 500, color: "#AFA9EC" }}>{val}</div>
+                <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Weight over time (kg)</div>
+            {weightData.length < 2 ? <div style={{ textAlign: "center", padding: "20px 0", color: "#444", fontSize: 13 }}>Log at least 2 body measurements to see chart</div> : (
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={weightData}>
+                  <XAxis dataKey="date" tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                  <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, color: "#e8e8f0" }} />
+                  <Line type="monotone" dataKey="weight" stroke="#534AB7" strokeWidth={2} dot={{ fill: "#534AB7", r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Daily quests completed</div>
+            {questData.length === 0 ? <div style={{ textAlign: "center", padding: "20px 0", color: "#444", fontSize: 13 }}>Complete some quests to see activity</div> : (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={questData}>
+                  <XAxis dataKey="date" tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#555", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, color: "#e8e8f0" }} />
+                  <Bar dataKey="quests" fill="#534AB7" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px" }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Rank progression</div>
+            {RANKS.map((r) => (
+              <div key={r.rank} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 6, background: level >= r.minLevel ? "#1a1035" : "#0a0a0f", border: `1px solid ${level >= r.minLevel ? "#534AB7" : "#1e1e2e"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: level >= r.minLevel ? "#AFA9EC" : "#333", fontWeight: 500 }}>{r.rank}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: level >= r.minLevel ? "#e8e8f0" : "#444" }}>{r.title}</div>
+                  <div style={{ fontSize: 11, color: "#444" }}>Level {r.minLevel}+</div>
+                </div>
+                {level >= r.minLevel ? <span style={{ fontSize: 12, color: "#534AB7" }}>✓ Unlocked</span> : <span style={{ fontSize: 11, color: "#333" }}>{r.minLevel - level} levels away</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -466,6 +588,7 @@ export default function App() {
   const [levelUpMsg, setLevelUpMsg] = useState(false);
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState("home");
+  const [minQuestWarning, setMinQuestWarning] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -491,8 +614,17 @@ export default function App() {
     setLoading(false);
   }
 
+  async function toggleMode() {
+    if (!profile) return;
+    const newMode = profile.mode === "home" ? "gym" : "home";
+    await supabase.from("profiles").update({ mode: newMode }).eq("id", user.id);
+    setProfile(p => ({ ...p, mode: newMode }));
+    setCompleted([]);
+  }
+
   async function toggleQuest(id) {
     if (!user || !profile) return;
+    const QUESTS = profile.mode === "gym" ? GYM_QUESTS : HOME_QUESTS;
     const q = QUESTS.find((q) => q.id === id);
     if (!q) return;
     const today = getTodayString();
@@ -521,12 +653,16 @@ export default function App() {
   if (screen === "body") return <BodyLogger user={user} onClose={() => setScreen("home")} />;
   if (screen === "nutrition") return <NutritionTracker user={user} onClose={() => setScreen("home")} />;
   if (screen === "progress") return <ProgressCharts user={user} profile={profile} onClose={() => setScreen("home")} />;
+  if (screen === "quests") return <QuestLibrary user={user} profile={profile} onClose={() => setScreen("home")} />;
 
+  const QUESTS = profile?.mode === "gym" ? GYM_QUESTS : HOME_QUESTS;
   const level = profile?.level || 1;
   const totalXP = profile?.total_xp || 0;
   const xpIntoLevel = totalXP % 200;
   const rank = getRank(level);
   const nextRank = RANKS.find((r) => r.minLevel > level);
+  const minQuestsReached = completed.length >= 3;
+  const mode = profile?.mode || "home";
 
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
@@ -535,10 +671,16 @@ export default function App() {
           ⚡ LEVEL UP! You are now Level {level}!
         </div>
       )}
+
       <div style={{ background: "#0f0f1a", padding: "20px 20px 16px", borderBottom: "1px solid #1e1e2e" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <span style={{ background: "#1a1035", border: "1px solid #534AB7", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#AFA9EC" }}>Rank {rank.rank} — Hunter</span>
-          <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#555", cursor: "pointer" }}>Logout</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={toggleMode} style={{ background: mode === "gym" ? "#1a2a1a" : "#1a1035", border: `1px solid ${mode === "gym" ? "#4CAF50" : "#534AB7"}`, borderRadius: 6, padding: "3px 10px", fontSize: 12, color: mode === "gym" ? "#4CAF50" : "#AFA9EC", cursor: "pointer" }}>
+              {mode === "gym" ? "🏋️ Gym" : "🏠 Home"}
+            </button>
+            <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#555", cursor: "pointer" }}>Logout</button>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#1a1035", border: "2px solid #534AB7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#AFA9EC", fontWeight: 500 }}>
@@ -550,6 +692,7 @@ export default function App() {
           </div>
         </div>
       </div>
+
       <div style={{ background: "#0f0f1a", padding: "14px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: 13, color: "#888" }}>Level {level}</span>
@@ -562,6 +705,7 @@ export default function App() {
           {nextRank ? `Next rank at Level ${nextRank.minLevel} — ${nextRank.rank} Rank` : "Max Rank — Shadow Sovereign"}
         </div>
       </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "12px 20px" }}>
         {[["Strength", profile?.strength], ["Endurance", profile?.endurance], ["Vitality", profile?.vitality], ["Agility", profile?.agility]].map(([name, val]) => (
           <div key={name} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px 14px" }}>
@@ -570,11 +714,25 @@ export default function App() {
           </div>
         ))}
       </div>
+
       <div style={{ padding: "4px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Quests</div>
-          <div style={{ fontSize: 11, color: "#444" }}>Resets at midnight</div>
+          <div style={{ fontSize: 11, color: "#444" }}>Min 3 to level up</div>
         </div>
+
+        {!minQuestsReached && completed.length > 0 && (
+          <div style={{ background: "#1a1a0a", border: "1px solid #3a3a1a", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#888" }}>
+            ⚡ Complete {3 - completed.length} more quest{3 - completed.length > 1 ? "s" : ""} to earn XP today!
+          </div>
+        )}
+
+        {minQuestsReached && (
+          <div style={{ background: "#0a1a0a", border: "1px solid #1a3a1a", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#4CAF50" }}>
+            ✓ Minimum reached! Keep going for bonus XP!
+          </div>
+        )}
+
         {QUESTS.map((q) => {
           const done = completed.includes(q.id);
           return (
@@ -588,23 +746,26 @@ export default function App() {
           );
         })}
       </div>
+
       <div style={{ padding: "8px 20px 0" }}>
         <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
           <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>Quests completed today</div>
-          <div style={{ fontSize: 22, fontWeight: 500, color: "#AFA9EC" }}>{completed.length} / {QUESTS.length}</div>
+          <div style={{ fontSize: 22, fontWeight: 500, color: minQuestsReached ? "#4CAF50" : "#AFA9EC" }}>{completed.length} / {QUESTS.length}</div>
           <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}>
-            <div style={{ background: "#534AB7", borderRadius: 4, height: 4, width: `${(completed.length / QUESTS.length) * 100}%`, transition: "width 0.4s" }} />
+            <div style={{ background: minQuestsReached ? "#4CAF50" : "#534AB7", borderRadius: 4, height: 4, width: `${(completed.length / QUESTS.length) * 100}%`, transition: "width 0.4s" }} />
           </div>
-          {completed.length === QUESTS.length && (
-            <div style={{ marginTop: 10, fontSize: 13, color: "#534AB7", fontWeight: 500, textAlign: "center" }}>⚡ All quests complete! Come back tomorrow!</div>
-          )}
+          <div style={{ marginTop: 6, fontSize: 11, color: "#444" }}>
+            {completed.length < 3 ? `${3 - completed.length} more to reach daily minimum` : completed.length === QUESTS.length ? "⚡ All quests complete! Come back tomorrow!" : `${QUESTS.length - completed.length} quests remaining`}
+          </div>
         </div>
       </div>
+
       <div style={{ padding: "12px 20px 0", display: "flex", flexDirection: "column", gap: 8 }}>
         {[
+          { screen: "quests", icon: "⚔️", title: "Quest Library", sub: "Browse & create custom quests" },
           { screen: "progress", icon: "📊", title: "Progress Charts", sub: "Weight, quests & calorie history" },
           { screen: "nutrition", icon: "🥗", title: "Nutrition Tracker", sub: "Log meals, calories & macros" },
-          { screen: "body", icon: "📏", title: "Body Measurements", sub: "Log weight, measurements & progress" },
+          { screen: "body", icon: "📏", title: "Body Measurements", sub: "Log weight & measurements" },
         ].map((item) => (
           <button key={item.screen} onClick={() => setScreen(item.screen)} style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", color: "#e8e8f0" }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: "#1a1035", border: "1px solid #534AB7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{item.icon}</div>
