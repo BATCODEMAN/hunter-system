@@ -47,9 +47,7 @@ const CONTINENT_MAP = {
   NG: "Africa", ZA: "Africa", KE: "Africa", GH: "Africa", ET: "Africa",
 };
 
-function getRank(level) {
-  return [...RANKS].reverse().find((r) => level >= r.minLevel) || RANKS[0];
-}
+function getRank(level) { return [...RANKS].reverse().find(r => level >= r.minLevel) || RANKS[0]; }
 function getTodayString() { return new Date().toISOString().slice(0, 10); }
 function getYesterdayString() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
 function generateHunterId() { return "HUNTER#" + Math.floor(1000 + Math.random() * 9000); }
@@ -69,7 +67,7 @@ function scheduleNotification(hour) {
   }, scheduled.getTime() - now.getTime());
 }
 
-// ─── AUTH ────────────────────────────────────────────────────────────────────
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
 function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [username, setUsername] = useState("");
@@ -117,8 +115,10 @@ function AuthScreen() {
 
 // ─── ONBOARDING ───────────────────────────────────────────────────────────────
 function OnboardingScreen({ user, onComplete }) {
-  const [step, setStep] = useState(0); const [answers, setAnswers] = useState({ body_type: "", goal: "", mode: "" });
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState({ gender: "", body_type: "", goal: "", mode: "" });
   const steps = [
+    { question: "Choose your hunter type", subtitle: "This shapes your character avatar", options: [{ value: "male", label: "Hunter", desc: "Male warrior", emoji: "⚔️" }, { value: "female", label: "Huntress", desc: "Female warrior", emoji: "🗡️" }], key: "gender" },
     { question: "Welcome, Hunter. Before you begin...", subtitle: "What does your body look like right now?", options: [{ value: "very_skinny", label: "Very Skinny", desc: "Quite thin, need to gain mass", emoji: "🦴" }, { value: "skinny", label: "Skinny", desc: "Lean but not very muscular", emoji: "😤" }, { value: "average", label: "Average", desc: "Normal build, some muscle", emoji: "🧍" }, { value: "chubby", label: "Chubby", desc: "A bit of extra weight", emoji: "🙂" }, { value: "overweight", label: "Overweight", desc: "Significantly above ideal weight", emoji: "💪" }], key: "body_type" },
     { question: "What is your main goal?", subtitle: "This will shape your quest recommendations", options: [{ value: "lose_weight", label: "Lose Weight", desc: "Burn fat and get leaner", emoji: "🔥" }, { value: "build_muscle", label: "Build Muscle", desc: "Get stronger and bigger", emoji: "💪" }, { value: "both", label: "Both", desc: "Lose fat and gain muscle", emoji: "⚡" }], key: "goal" },
     { question: "Where will you train?", subtitle: "You can switch anytime later", options: [{ value: "home", label: "At Home", desc: "No equipment needed", emoji: "🏠" }, { value: "gym", label: "At the Gym", desc: "Full equipment available", emoji: "🏋️" }], key: "mode" },
@@ -127,7 +127,7 @@ function OnboardingScreen({ user, onComplete }) {
   async function finishSetup(fa) {
     let country = "", continent = "";
     try { const r = await fetch("https://ipapi.co/json/"); const d = await r.json(); country = d.country_code || ""; continent = CONTINENT_MAP[country] || "Other"; } catch {}
-    await supabase.from("profiles").update({ body_type: fa.body_type, goal: fa.goal, mode: fa.mode, country, continent, setup_complete: true }).eq("id", user.id);
+    await supabase.from("profiles").update({ gender: fa.gender, body_type: fa.body_type, goal: fa.goal, mode: fa.mode, country, continent, setup_complete: true }).eq("id", user.id);
     onComplete({ ...fa, country, continent, setup_complete: true });
   }
   function selectOption(value) {
@@ -135,13 +135,21 @@ function OnboardingScreen({ user, onComplete }) {
     if (step < steps.length - 1) setTimeout(() => setStep(step + 1), 300);
     else setTimeout(() => finishSetup(na), 300);
   }
+  const previewGender = answers.gender || "male";
+  const previewBody = answers.body_type || "average";
+  const previewGoal = answers.goal || "both";
   return (
-    <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px", maxWidth: 420, margin: "0 auto" }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>⚡</div>
-      <div style={{ fontSize: 11, color: "#444", marginBottom: 24, letterSpacing: "0.1em" }}>STEP {step + 1} OF {steps.length}</div>
-      <div style={{ width: "100%", background: "#1a1a2e", borderRadius: 4, height: 4, marginBottom: 32 }}><div style={{ background: "#534AB7", borderRadius: 4, height: 4, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.4s" }} /></div>
+    <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", display: "flex", flexDirection: "column", alignItems: "center", padding: "30px 20px", maxWidth: 420, margin: "0 auto" }}>
+      <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
+      <div style={{ fontSize: 11, color: "#444", marginBottom: 16, letterSpacing: "0.1em" }}>STEP {step + 1} OF {steps.length}</div>
+      <div style={{ width: "100%", background: "#1a1a2e", borderRadius: 4, height: 4, marginBottom: 24 }}><div style={{ background: "#534AB7", borderRadius: 4, height: 4, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.4s" }} /></div>
+      {step >= 1 && (
+        <div style={{ width: 80, marginBottom: 16 }}>
+          <AvatarSVG rank="E" bodyType={previewBody} goal={previewGoal} gender={previewGender} animated={false} />
+        </div>
+      )}
       <h2 style={{ fontSize: 20, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{current.question}</h2>
-      <p style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 28 }}>{current.subtitle}</p>
+      <p style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 24 }}>{current.subtitle}</p>
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
         {current.options.map(opt => (
           <button key={opt.value} onClick={() => selectOption(opt.value)} style={{ width: "100%", background: answers[current.key] === opt.value ? "#1a1035" : "#0f0f1a", border: `1px solid ${answers[current.key] === opt.value ? "#534AB7" : "#1e1e2e"}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", color: "#e8e8f0", textAlign: "left" }}>
@@ -163,57 +171,42 @@ function GlobalChat({ user, profile, onClose }) {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
   const rank = getRank(profile?.level || 1);
-
   const channels = [
     { id: "world", label: "🌍 World" },
     { id: profile?.continent || "Other", label: `🌐 ${profile?.continent || "Region"}` },
     { id: profile?.country || "XX", label: `🏳️ ${profile?.country || "Country"}` },
   ];
-
   useEffect(() => { loadMessages(); }, [channel]);
-
   useEffect(() => {
     const sub = supabase.channel("chat:" + channel)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `channel=eq.${channel}` },
-        (payload) => setMessages(prev => [...prev.slice(-99), payload.new]))
+        payload => setMessages(prev => [...prev.slice(-99), payload.new]))
       .subscribe();
     return () => supabase.removeChannel(sub);
   }, [channel]);
-
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-
   async function loadMessages() {
     const { data } = await supabase.from("chat_messages").select("*").eq("channel", channel).order("created_at", { ascending: true }).limit(60);
     setMessages(data || []);
   }
-
   async function sendMessage() {
     if (!input.trim() || sending) return;
     setSending(true);
-    await supabase.from("chat_messages").insert({
-      user_id: user.id, username: profile?.username || "Hunter",
-      rank: rank.rank, level: profile?.level || 1,
-      channel, country: profile?.country || "", continent: profile?.continent || "",
-      message: input.trim()
-    });
+    await supabase.from("chat_messages").insert({ user_id: user.id, username: profile?.username || "Hunter", rank: rank.rank, level: profile?.level || 1, channel, country: profile?.country || "", continent: profile?.continent || "", message: input.trim() });
     setInput(""); setSending(false);
   }
-
   const RANK_COLORS = { E: "#888", D: "#4CAF50", C: "#2196F3", B: "#9C27B0", A: "#FF9800", S: "#FFD700" };
-
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", display: "flex", flexDirection: "column" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
         <div><div style={{ fontSize: 16, fontWeight: 500 }}>Hunter Chat</div><div style={{ fontSize: 12, color: "#534AB7" }}>Global community</div></div>
       </div>
-
       <div style={{ display: "flex", background: "#0f0f1a", borderBottom: "1px solid #1e1e2e", overflowX: "auto" }}>
         {channels.map(ch => (
           <button key={ch.id} onClick={() => setChannel(ch.id)} style={{ flex: 1, padding: "10px 8px", border: "none", background: "transparent", color: channel === ch.id ? "#AFA9EC" : "#555", borderBottom: channel === ch.id ? "2px solid #534AB7" : "2px solid transparent", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>{ch.label}</button>
         ))}
       </div>
-
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0, maxHeight: "calc(100vh - 180px)" }}>
         {messages.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: "#444", fontSize: 14 }}>No messages yet — be the first to speak, Hunter!</div>}
         {messages.map(msg => {
@@ -230,7 +223,6 @@ function GlobalChat({ user, profile, onClose }) {
         })}
         <div ref={bottomRef} />
       </div>
-
       <div style={{ padding: "12px 16px", background: "#0f0f1a", borderTop: "1px solid #1e1e2e", display: "flex", gap: 8 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} placeholder="Type a message..." maxLength={200} style={{ flex: 1, background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14 }} />
         <button onClick={sendMessage} disabled={!input.trim() || sending} style={{ background: "#534AB7", border: "none", borderRadius: 8, padding: "10px 16px", color: "#fff", cursor: "pointer", fontSize: 14, opacity: input.trim() ? 1 : 0.5 }}>Send</button>
@@ -239,21 +231,15 @@ function GlobalChat({ user, profile, onClose }) {
   );
 }
 
-// ─── SOCIAL / FRIENDS ─────────────────────────────────────────────────────────
+// ─── SOCIAL ───────────────────────────────────────────────────────────────────
 function SocialScreen({ user, profile, onClose }) {
   const [tab, setTab] = useState("leaderboard");
-  const [searchId, setSearchId] = useState("");
-  const [searchResult, setSearchResult] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [friends, setFriends] = useState([]);
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+  const [searchId, setSearchId] = useState(""); const [searchResult, setSearchResult] = useState(null); const [searching, setSearching] = useState(false);
+  const [friends, setFriends] = useState([]); const [leaderboard, setLeaderboard] = useState([]); const [loading, setLoading] = useState(true);
   useEffect(() => { loadData(); }, []);
-
   async function loadData() {
     setLoading(true);
-    const { data: lb } = await supabase.from("profiles").select("username, level, total_xp, streak, rank_title, hunter_id, country").order("total_xp", { ascending: false }).limit(20);
+    const { data: lb } = await supabase.from("profiles").select("username, level, total_xp, streak, hunter_id, country").order("total_xp", { ascending: false }).limit(20);
     setLeaderboard(lb || []);
     const { data: fs } = await supabase.from("friendships").select("*").or(`user_id.eq.${user.id},friend_id.eq.${user.id}`).eq("status", "accepted");
     if (fs && fs.length > 0) {
@@ -263,81 +249,57 @@ function SocialScreen({ user, profile, onClose }) {
     }
     setLoading(false);
   }
-
   async function searchHunter() {
     if (!searchId.trim()) return;
     setSearching(true); setSearchResult(null);
     const { data } = await supabase.from("profiles").select("id, username, level, total_xp, streak, hunter_id").eq("hunter_id", searchId.trim().toUpperCase()).single();
     setSearchResult(data || "notfound"); setSearching(false);
   }
-
   async function addFriend(friendId) {
     await supabase.from("friendships").insert({ user_id: user.id, friend_id: friendId, status: "accepted" });
     setSearchResult(null); setSearchId(""); loadData();
   }
-
-  const rank = getRank(profile?.level || 1);
   const RANK_COLORS = { E: "#888", D: "#4CAF50", C: "#2196F3", B: "#9C27B0", A: "#FF9800", S: "#FFD700" };
-
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
         <div><div style={{ fontSize: 16, fontWeight: 500 }}>Social</div><div style={{ fontSize: 12, color: "#534AB7" }}>Hunters worldwide</div></div>
       </div>
-
       <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, margin: "12px 16px", padding: "12px 14px" }}>
         <div style={{ fontSize: 11, color: "#555", marginBottom: 4 }}>YOUR HUNTER ID</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: "#AFA9EC", letterSpacing: 1 }}>{profile?.hunter_id || "—"}</div>
         <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>Share this so friends can find you</div>
       </div>
-
       <div style={{ display: "flex", background: "#0f0f1a", borderBottom: "1px solid #1e1e2e" }}>
         {[["leaderboard", "🏆 Leaderboard"], ["friends", "👥 Friends"], ["add", "➕ Add"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "10px 4px", border: "none", background: "transparent", color: tab === id ? "#AFA9EC" : "#555", borderBottom: tab === id ? "2px solid #534AB7" : "2px solid transparent", cursor: "pointer", fontSize: 12 }}>{label}</button>
         ))}
       </div>
-
       <div style={{ padding: "12px 16px" }}>
-        {tab === "leaderboard" && (
-          <>
-            {leaderboard.map((p, i) => {
-              const r = getRank(p.level || 1);
-              const isMe = p.hunter_id === profile?.hunter_id;
-              return (
-                <div key={i} style={{ background: isMe ? "#1a1035" : "#0f0f1a", border: `1px solid ${isMe ? "#534AB7" : "#1e1e2e"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 28, textAlign: "center", fontSize: 14, fontWeight: 700, color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#444" }}>{i + 1}</div>
-                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0a0a0f", border: `1.5px solid ${RANK_COLORS[r.rank]}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: RANK_COLORS[r.rank], fontWeight: 700 }}>{r.rank}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{p.username}{isMe ? " (You)" : ""}</div>
-                    <div style={{ fontSize: 11, color: "#555" }}>Lv{p.level} · {p.country || "🌍"} · 🔥{p.streak || 0}</div>
-                  </div>
-                  <div style={{ fontSize: 13, color: "#534AB7", fontWeight: 500 }}>{p.total_xp} XP</div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
+        {tab === "leaderboard" && leaderboard.map((p, i) => {
+          const r = getRank(p.level || 1); const isMe = p.hunter_id === profile?.hunter_id;
+          return (
+            <div key={i} style={{ background: isMe ? "#1a1035" : "#0f0f1a", border: `1px solid ${isMe ? "#534AB7" : "#1e1e2e"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 28, textAlign: "center", fontSize: 14, fontWeight: 700, color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#444" }}>{i + 1}</div>
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#0a0a0f", border: `1.5px solid ${RANK_COLORS[r.rank]}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: RANK_COLORS[r.rank], fontWeight: 700 }}>{r.rank}</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500 }}>{p.username}{isMe ? " (You)" : ""}</div><div style={{ fontSize: 11, color: "#555" }}>Lv{p.level} · {p.country || "🌍"} · 🔥{p.streak || 0}</div></div>
+              <div style={{ fontSize: 13, color: "#534AB7", fontWeight: 500 }}>{p.total_xp} XP</div>
+            </div>
+          );
+        })}
         {tab === "friends" && (
           <>
             {friends.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: "#444" }}>No friends yet — add some hunters!</div>}
-            {friends.map((f, i) => {
-              const r = getRank(f.level || 1);
-              return (
-                <div key={i} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0a0a0f", border: `1.5px solid ${RANK_COLORS[r.rank]}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: RANK_COLORS[r.rank], fontWeight: 700 }}>{r.rank}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{f.username}</div>
-                    <div style={{ fontSize: 11, color: "#555" }}>Lv{f.level} · 🔥{f.streak || 0} streak</div>
-                  </div>
-                  <div style={{ fontSize: 13, color: "#534AB7" }}>{f.total_xp} XP</div>
-                </div>
-              );
-            })}
+            {friends.map((f, i) => { const r = getRank(f.level || 1); return (
+              <div key={i} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0a0a0f", border: `1.5px solid ${RANK_COLORS[r.rank]}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: RANK_COLORS[r.rank], fontWeight: 700 }}>{r.rank}</div>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500 }}>{f.username}</div><div style={{ fontSize: 11, color: "#555" }}>Lv{f.level} · 🔥{f.streak || 0} streak</div></div>
+                <div style={{ fontSize: 13, color: "#534AB7" }}>{f.total_xp} XP</div>
+              </div>
+            ); })}
           </>
         )}
-
         {tab === "add" && (
           <div>
             <div style={{ fontSize: 13, color: "#666", marginBottom: 8 }}>Enter a Hunter ID to add a friend</div>
@@ -350,9 +312,7 @@ function SocialScreen({ user, profile, onClose }) {
               <div style={{ background: "#0f0f1a", border: "1px solid #534AB7", borderRadius: 10, padding: "14px" }}>
                 <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{searchResult.username}</div>
                 <div style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>Level {searchResult.level} · {searchResult.total_xp} XP · 🔥{searchResult.streak || 0}</div>
-                {searchResult.id === user.id
-                  ? <div style={{ fontSize: 13, color: "#666" }}>That's you!</div>
-                  : <button onClick={() => addFriend(searchResult.id)} style={{ width: "100%", background: "#534AB7", border: "none", borderRadius: 8, padding: "10px", color: "#fff", cursor: "pointer", fontSize: 14 }}>Add Friend</button>}
+                {searchResult.id === user.id ? <div style={{ fontSize: 13, color: "#666" }}>That's you!</div> : <button onClick={() => addFriend(searchResult.id)} style={{ width: "100%", background: "#534AB7", border: "none", borderRadius: 8, padding: "10px", color: "#fff", cursor: "pointer", fontSize: 14 }}>Add Friend</button>}
               </div>
             )}
           </div>
@@ -413,7 +373,7 @@ function NotificationSettings({ user, profile, onSave, onClose }) {
   );
 }
 
-// ─── AVATAR ───────────────────────────────────────────────────────────────────
+// ─── AVATAR SCREEN ────────────────────────────────────────────────────────────
 function AvatarScreen({ user, profile, onClose }) {
   const rank = getRank(profile?.level || 1).rank;
   const RANK_TITLES = { E: "Awakened Hunter", D: "Iron Body", C: "Steel Warrior", B: "Shadow Blade", A: "Monarch", S: "Shadow Sovereign" };
@@ -425,7 +385,9 @@ function AvatarScreen({ user, profile, onClose }) {
         <div><div style={{ fontSize: 16, fontWeight: 500 }}>My Hunter</div><div style={{ fontSize: 12, color: "#534AB7" }}>Rank {rank} — {RANK_TITLES[rank]}</div></div>
       </div>
       <div style={{ padding: "24px 20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ width: "100%", maxWidth: 200, marginBottom: 16 }}><AvatarSVG rank={rank} bodyType={profile?.body_type || "average"} goal={profile?.goal || "both"} animated={true} /></div>
+        <div style={{ width: "100%", maxWidth: 200, marginBottom: 16 }}>
+          <AvatarSVG rank={rank} bodyType={profile?.body_type || "average"} goal={profile?.goal || "both"} gender={profile?.gender || "male"} animated={true} />
+        </div>
         <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>{profile?.username || "Hunter"}</div>
         <div style={{ fontSize: 14, color: "#534AB7", marginBottom: 4 }}>{RANK_TITLES[rank]}</div>
         <div style={{ fontSize: 12, color: "#444", marginBottom: 16 }}>{profile?.hunter_id || ""}</div>
@@ -469,8 +431,7 @@ function QuestLibrary({ user, profile, onClose }) {
   const [saving, setSaving] = useState(false); const [tab, setTab] = useState("browse"); const [filter, setFilter] = useState("all");
   useEffect(() => { loadData(); }, []);
   async function loadData() {
-    const { data: q } = await supabase.from("custom_quests").select("*").order("likes", { ascending: false });
-    setQuests(q || []);
+    const { data: q } = await supabase.from("custom_quests").select("*").order("likes", { ascending: false }); setQuests(q || []);
     const { data: mine } = await supabase.from("user_custom_quests").select("quest_id").eq("user_id", user.id);
     setMyQuests(mine ? mine.map(m => m.quest_id) : []);
   }
@@ -601,8 +562,7 @@ function NutritionTracker({ user, onClose }) {
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [showGoals, setShowGoals] = useState(false);
   useEffect(() => { loadData(); }, []);
   async function loadData() {
-    const { data: mealData } = await supabase.from("nutrition_logs").select("*").eq("user_id", user.id).eq("logged_date", getTodayString()).order("created_at", { ascending: true });
-    setMeals(mealData || []);
+    const { data: mealData } = await supabase.from("nutrition_logs").select("*").eq("user_id", user.id).eq("logged_date", getTodayString()).order("created_at", { ascending: true }); setMeals(mealData || []);
     const { data: goalData } = await supabase.from("nutrition_goals").select("*").eq("user_id", user.id).single();
     if (goalData) setGoals(goalData);
   }
@@ -835,7 +795,7 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => setScreen("avatar")} style={{ width: 56, height: 56, borderRadius: "50%", background: "#1a1035", border: "2px solid #534AB7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", padding: 2, flexShrink: 0 }}>
-            <AvatarSVG rank={rank.rank} bodyType={profile?.body_type || "average"} goal={profile?.goal || "both"} animated={false} />
+            <AvatarSVG rank={rank.rank} bodyType={profile?.body_type || "average"} goal={profile?.goal || "both"} gender={profile?.gender || "male"} animated={false} />
           </button>
           <div><div style={{ fontSize: 18, fontWeight: 500 }}>{profile?.username || "Hunter"}</div><div style={{ fontSize: 13, color: "#534AB7" }}>{rank.title}</div></div>
         </div>
