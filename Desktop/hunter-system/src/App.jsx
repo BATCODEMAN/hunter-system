@@ -30,6 +30,14 @@ const RANKS = [
   { minLevel: 50, rank: "S", title: "Shadow Sovereign" },
 ];
 
+const STREAK_MILESTONES = [
+  { days: 7, bonus: 100, label: "7 Day Warrior", emoji: "🔥" },
+  { days: 14, bonus: 200, label: "2 Week Hunter", emoji: "⚡" },
+  { days: 30, bonus: 500, label: "Monthly Legend", emoji: "👑" },
+  { days: 60, bonus: 1000, label: "Iron Will", emoji: "💎" },
+  { days: 100, bonus: 2000, label: "Shadow Sovereign", emoji: "🌑" },
+];
+
 function getRank(level) {
   return [...RANKS].reverse().find((r) => level >= r.minLevel) || RANKS[0];
 }
@@ -38,16 +46,88 @@ function getTodayString() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getYesterdayString() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function AuthScreen() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function handleSubmit() {
+    setLoading(true);
+    setError("");
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setError(error.message);
+    } else {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
+        await supabase.from("profiles").insert({ id: data.user.id, username: username || email.split("@")[0], total_xp: 0, level: 1, strength: 10, endurance: 10, vitality: 10, agility: 10, mode: "home", streak: 0, longest_streak: 0, setup_complete: false });
+        setMessage("Account created! Check your email to confirm, then log in.");
+        setIsLogin(true);
+      }
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ background: "#0a0a0f", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif", padding: 20 }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
+          <h1 style={{ color: "#e8e8f0", fontSize: 24, fontWeight: 600, margin: 0 }}>Hunter System</h1>
+          <p style={{ color: "#534AB7", margin: "6px 0 0", fontSize: 14 }}>Arise and begin your journey</p>
+        </div>
+        <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 16, padding: 24 }}>
+          <div style={{ display: "flex", marginBottom: 20, background: "#0a0a0f", borderRadius: 8, padding: 3 }}>
+            <button onClick={() => setIsLogin(true)} style={{ flex: 1, padding: "8px", borderRadius: 6, border: "none", background: isLogin ? "#534AB7" : "transparent", color: isLogin ? "#fff" : "#666", cursor: "pointer", fontSize: 14 }}>Login</button>
+            <button onClick={() => setIsLogin(false)} style={{ flex: 1, padding: "8px", borderRadius: 6, border: "none", background: !isLogin ? "#534AB7" : "transparent", color: !isLogin ? "#fff" : "#666", cursor: "pointer", fontSize: 14 }}>Sign Up</button>
+          </div>
+          {!isLogin && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Hunter Name</div>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your name" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+          )}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Email</div>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" type="email" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Password</div>
+            <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" type="password" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+          </div>
+          {error && <div style={{ background: "#2a0a0a", border: "1px solid #5a1a1a", borderRadius: 8, padding: "10px 12px", color: "#ff6b6b", fontSize: 13, marginBottom: 14 }}>{error}</div>}
+          {message && <div style={{ background: "#0a2a0a", border: "1px solid #1a5a1a", borderRadius: 8, padding: "10px 12px", color: "#6bff6b", fontSize: 13, marginBottom: 14 }}>{message}</div>}
+          <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
+            {loading ? "Loading..." : isLogin ? "Login" : "Create Account"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OnboardingScreen({ user, onComplete }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({ body_type: "", goal: "", mode: "" });
 
   const steps = [
     {
-      question: "Welcome, Hunter. Before you begin your journey...",
+      question: "Welcome, Hunter. Before you begin...",
       subtitle: "What does your body look like right now?",
       options: [
-        { value: "very_skinny", label: "Very Skinny", desc: "I'm quite thin, need to gain mass", emoji: "🦴" },
+        { value: "very_skinny", label: "Very Skinny", desc: "Quite thin, need to gain mass", emoji: "🦴" },
         { value: "skinny", label: "Skinny", desc: "Lean but not very muscular", emoji: "😤" },
         { value: "average", label: "Average", desc: "Normal build, some muscle", emoji: "🧍" },
         { value: "chubby", label: "Chubby", desc: "A bit of extra weight", emoji: "🙂" },
@@ -78,14 +158,9 @@ function OnboardingScreen({ user, onComplete }) {
 
   const current = steps[step];
 
-  async function finishSetup() {
-    await supabase.from("profiles").update({
-      body_type: answers.body_type,
-      goal: answers.goal,
-      mode: answers.mode,
-      setup_complete: true,
-    }).eq("id", user.id);
-    onComplete({ ...answers, setup_complete: true });
+  async function finishSetup(finalAnswers) {
+    await supabase.from("profiles").update({ body_type: finalAnswers.body_type, goal: finalAnswers.goal, mode: finalAnswers.mode, setup_complete: true }).eq("id", user.id);
+    onComplete({ ...finalAnswers, setup_complete: true });
   }
 
   function selectOption(value) {
@@ -94,7 +169,7 @@ function OnboardingScreen({ user, onComplete }) {
     if (step < steps.length - 1) {
       setTimeout(() => setStep(step + 1), 300);
     } else {
-      setTimeout(() => finishSetup(), 300);
+      setTimeout(() => finishSetup(newAnswers), 300);
     }
   }
 
@@ -105,12 +180,11 @@ function OnboardingScreen({ user, onComplete }) {
       <div style={{ width: "100%", background: "#1a1a2e", borderRadius: 4, height: 4, marginBottom: 32 }}>
         <div style={{ background: "#534AB7", borderRadius: 4, height: 4, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.4s" }} />
       </div>
-      <h2 style={{ fontSize: 20, fontWeight: 600, textAlign: "center", marginBottom: 6, color: "#e8e8f0" }}>{current.question}</h2>
+      <h2 style={{ fontSize: 20, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{current.question}</h2>
       <p style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 28 }}>{current.subtitle}</p>
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
         {current.options.map((opt) => (
-          <button key={opt.value} onClick={() => selectOption(opt.value)}
-            style={{ width: "100%", background: answers[current.key] === opt.value ? "#1a1035" : "#0f0f1a", border: `1px solid ${answers[current.key] === opt.value ? "#534AB7" : "#1e1e2e"}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", transition: "all 0.2s", color: "#e8e8f0", textAlign: "left" }}>
+          <button key={opt.value} onClick={() => selectOption(opt.value)} style={{ width: "100%", background: answers[current.key] === opt.value ? "#1a1035" : "#0f0f1a", border: `1px solid ${answers[current.key] === opt.value ? "#534AB7" : "#1e1e2e"}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", color: "#e8e8f0", textAlign: "left" }}>
             <div style={{ fontSize: 28, width: 36, textAlign: "center" }}>{opt.emoji}</div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 500 }}>{opt.label}</div>
@@ -126,51 +200,41 @@ function OnboardingScreen({ user, onComplete }) {
 
 function AvatarScreen({ user, profile, onClose }) {
   const rank = getRank(profile?.level || 1).rank;
-  const bodyType = profile?.body_type || "average";
-  const goal = profile?.goal || "both";
-
-  const RANK_TITLES = {
-    E: "Awakened Hunter", D: "Iron Body", C: "Steel Warrior",
-    B: "Shadow Blade", A: "Monarch", S: "Shadow Sovereign"
-  };
-
+  const RANK_TITLES = { E: "Awakened Hunter", D: "Iron Body", C: "Steel Warrior", B: "Shadow Blade", A: "Monarch", S: "Shadow Sovereign" };
   const nextRankInfo = RANKS.find(r => r.minLevel > (profile?.level || 1));
 
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Your Hunter</div>
-          <div style={{ fontSize: 12, color: "#534AB7" }}>Rank {rank} — {RANK_TITLES[rank]}</div>
-        </div>
+        <div><div style={{ fontSize: 16, fontWeight: 500 }}>My Hunter</div><div style={{ fontSize: 12, color: "#534AB7" }}>Rank {rank} — {RANK_TITLES[rank]}</div></div>
       </div>
-
       <div style={{ padding: "24px 20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ width: "100%", maxWidth: 220, marginBottom: 20 }}>
-          <AvatarSVG rank={rank} bodyType={bodyType} goal={goal} animated={true} />
+        <div style={{ width: "100%", maxWidth: 200, marginBottom: 16 }}>
+          <AvatarSVG rank={rank} bodyType={profile?.body_type || "average"} goal={profile?.goal || "both"} animated={true} />
         </div>
-
         <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>{profile?.username || "Hunter"}</div>
-        <div style={{ fontSize: 14, color: "#534AB7", marginBottom: 20 }}>{RANK_TITLES[rank]}</div>
+        <div style={{ fontSize: 14, color: "#534AB7", marginBottom: 16 }}>{RANK_TITLES[rank]}</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, width: "100%", marginBottom: 20 }}>
-          {[["Level", profile?.level || 1], ["Total XP", profile?.total_xp || 0], ["Rank", rank]].map(([label, val]) => (
-            <div key={label} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-              <div style={{ fontSize: 18, fontWeight: 500, color: "#AFA9EC" }}>{val}</div>
+        {/* Streak display on avatar screen */}
+        <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "14px 20px", marginBottom: 16, width: "100%", display: "flex", justifyContent: "space-around" }}>
+          {[["🔥", profile?.streak || 0, "Day Streak"], ["⚡", profile?.level || 1, "Level"], ["👑", profile?.longest_streak || 0, "Best Streak"]].map(([icon, val, label]) => (
+            <div key={label} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 20 }}>{icon}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: "#AFA9EC" }}>{val}</div>
               <div style={{ fontSize: 11, color: "#555" }}>{label}</div>
             </div>
           ))}
         </div>
 
         <div style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "16px", marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>RANK PROGRESSION</div>
+          <div style={{ fontSize: 12, color: "#555", marginBottom: 10 }}>RANK PROGRESSION</div>
           {RANKS.map((r) => {
             const unlocked = (profile?.level || 1) >= r.minLevel;
             const isCurrent = r.rank === rank;
             return (
               <div key={r.rank} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, opacity: unlocked ? 1 : 0.4 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: isCurrent ? "#1a1035" : unlocked ? "#111" : "#0a0a0f", border: `1.5px solid ${isCurrent ? "#534AB7" : unlocked ? "#333" : "#1e1e2e"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: isCurrent ? "#AFA9EC" : "#555", fontWeight: 700 }}>{r.rank}</div>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: isCurrent ? "#1a1035" : "#0a0a0f", border: `1.5px solid ${isCurrent ? "#534AB7" : "#1e1e2e"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: isCurrent ? "#AFA9EC" : "#555", fontWeight: 700 }}>{r.rank}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: unlocked ? "#e8e8f0" : "#444" }}>{r.title}</div>
                   <div style={{ fontSize: 11, color: "#444" }}>Level {r.minLevel}+</div>
@@ -185,10 +249,10 @@ function AvatarScreen({ user, profile, onClose }) {
 
         {nextRankInfo && (
           <div style={{ width: "100%", background: "#0f0f1a", border: "1px solid #534AB7", borderRadius: 12, padding: "14px" }}>
-            <div style={{ fontSize: 12, color: "#534AB7", marginBottom: 6 }}>NEXT RANK UNLOCK</div>
-            <div style={{ fontSize: 14, color: "#e8e8f0" }}>Reach Level {nextRankInfo.minLevel} to become <strong>{nextRankInfo.title}</strong></div>
+            <div style={{ fontSize: 12, color: "#534AB7", marginBottom: 6 }}>NEXT RANK</div>
+            <div style={{ fontSize: 14, color: "#e8e8f0" }}>Level {nextRankInfo.minLevel} — <strong>{nextRankInfo.title}</strong></div>
             <div style={{ background: "#1a1a2e", borderRadius: 4, height: 6, marginTop: 10 }}>
-              <div style={{ background: "#534AB7", borderRadius: 4, height: 6, width: `${Math.min(100, ((profile?.level || 1) / nextRankInfo.minLevel) * 100)}%`, transition: "width 0.4s" }} />
+              <div style={{ background: "#534AB7", borderRadius: 4, height: 6, width: `${Math.min(100, ((profile?.level || 1) / nextRankInfo.minLevel) * 100)}%` }} />
             </div>
             <div style={{ fontSize: 11, color: "#444", marginTop: 4 }}>{nextRankInfo.minLevel - (profile?.level || 1)} more levels to go</div>
           </div>
@@ -205,26 +269,20 @@ function QuestLibrary({ user, profile, onClose }) {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("browse");
   const [filter, setFilter] = useState("all");
-
   useEffect(() => { loadData(); }, []);
-
   async function loadData() {
     const { data: q } = await supabase.from("custom_quests").select("*").order("likes", { ascending: false });
     setQuests(q || []);
     const { data: mine } = await supabase.from("user_custom_quests").select("quest_id").eq("user_id", user.id);
     setMyQuests(mine ? mine.map(m => m.quest_id) : []);
   }
-
   async function createQuest() {
     if (!form.name) return;
     setSaving(true);
     await supabase.from("custom_quests").insert({ created_by: user.id, creator_name: profile?.username || "Hunter", name: form.name, description: form.description, xp: parseInt(form.xp), category: form.category, mode: form.mode, likes: 0 });
     setForm({ name: "", description: "", xp: "50", category: "strength", mode: "both" });
-    loadData();
-    setSaving(false);
-    setTab("browse");
+    loadData(); setSaving(false); setTab("browse");
   }
-
   async function toggleQuest(questId) {
     if (myQuests.includes(questId)) {
       await supabase.from("user_custom_quests").delete().eq("user_id", user.id).eq("quest_id", questId);
@@ -233,10 +291,8 @@ function QuestLibrary({ user, profile, onClose }) {
     }
     loadData();
   }
-
   const filtered = quests.filter(q => filter === "all" || q.mode === filter || q.mode === "both");
   const categories = ["strength", "cardio", "flexibility", "core", "general"];
-
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
@@ -261,16 +317,13 @@ function QuestLibrary({ user, profile, onClose }) {
             return (
               <div key={q.id} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{q.name}</div>
-                    {q.description && <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{q.description}</div>}
-                  </div>
+                  <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500 }}>{q.name}</div>{q.description && <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{q.description}</div>}</div>
                   <span style={{ fontSize: 12, color: "#534AB7", fontWeight: 500 }}>+{q.xp} XP</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, color: "#444" }}>by {q.creator_name}</span>
                   <span style={{ fontSize: 11, background: "#1a1a2e", padding: "2px 6px", borderRadius: 4, color: "#666" }}>{q.mode}</span>
-                  <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  <div style={{ marginLeft: "auto" }}>
                     <button onClick={() => toggleQuest(q.id)} style={{ background: added ? "#1a1035" : "#534AB7", border: "none", borderRadius: 6, padding: "4px 10px", color: "#fff", cursor: "pointer", fontSize: 12 }}>{added ? "✓ Added" : "+ Add"}</button>
                   </div>
                 </div>
@@ -292,7 +345,7 @@ function QuestLibrary({ user, profile, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>XP Reward</div>
-              <input value={form.xp} onChange={(e) => setForm(p => ({ ...p, xp: e.target.value }))} type="number" placeholder="50" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+              <input value={form.xp} onChange={(e) => setForm(p => ({ ...p, xp: e.target.value }))} type="number" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
             </div>
             <div>
               <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Mode</div>
@@ -335,11 +388,9 @@ function BodyLogger({ user, onClose }) {
     const entry = { user_id: user.id, logged_date: getTodayString() };
     Object.keys(form).forEach((k) => { if (form[k] !== "") entry[k] = form[k]; });
     await supabase.from("body_logs").insert(entry);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
     setForm({ weight_kg: "", height_cm: "", chest_cm: "", waist_cm: "", hips_cm: "", bicep_cm: "", notes: "" });
-    loadLogs();
-    setSaving(false);
+    loadLogs(); setSaving(false);
   }
   const fields = [
     { key: "weight_kg", label: "Weight (kg)", placeholder: "e.g. 75.5" },
@@ -366,7 +417,7 @@ function BodyLogger({ user, onClose }) {
         </div>
         <div style={{ marginTop: 10 }}>
           <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Notes (optional)</div>
-          <input value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="How are you feeling today?" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+          <input value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="How are you feeling?" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
         </div>
         <button onClick={saveLog} disabled={saving} style={{ width: "100%", marginTop: 14, background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
           {saved ? "✓ Saved!" : saving ? "Saving..." : "Save Measurements"}
@@ -382,12 +433,11 @@ function BodyLogger({ user, onClose }) {
               {log.weight_kg && <span style={{ fontSize: 13, color: "#534AB7", fontWeight: 500 }}>{log.weight_kg} kg</span>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              {log.height_cm && <div style={{ fontSize: 12, color: "#666" }}>Height: <span style={{ color: "#c0c0d0" }}>{log.height_cm}cm</span></div>}
-              {log.chest_cm && <div style={{ fontSize: 12, color: "#666" }}>Chest: <span style={{ color: "#c0c0d0" }}>{log.chest_cm}cm</span></div>}
-              {log.waist_cm && <div style={{ fontSize: 12, color: "#666" }}>Waist: <span style={{ color: "#c0c0d0" }}>{log.waist_cm}cm</span></div>}
-              {log.bicep_cm && <div style={{ fontSize: 12, color: "#666" }}>Bicep: <span style={{ color: "#c0c0d0" }}>{log.bicep_cm}cm</span></div>}
+              {log.height_cm && <div style={{ fontSize: 12, color: "#666" }}>H: <span style={{ color: "#c0c0d0" }}>{log.height_cm}cm</span></div>}
+              {log.chest_cm && <div style={{ fontSize: 12, color: "#666" }}>C: <span style={{ color: "#c0c0d0" }}>{log.chest_cm}cm</span></div>}
+              {log.waist_cm && <div style={{ fontSize: 12, color: "#666" }}>W: <span style={{ color: "#c0c0d0" }}>{log.waist_cm}cm</span></div>}
+              {log.bicep_cm && <div style={{ fontSize: 12, color: "#666" }}>B: <span style={{ color: "#c0c0d0" }}>{log.bicep_cm}cm</span></div>}
             </div>
-            {log.notes && <div style={{ marginTop: 6, fontSize: 12, color: "#555", fontStyle: "italic" }}>"{log.notes}"</div>}
           </div>
         ))}
       </div>
@@ -404,8 +454,7 @@ function NutritionTracker({ user, onClose }) {
   const [showGoals, setShowGoals] = useState(false);
   useEffect(() => { loadData(); }, []);
   async function loadData() {
-    const today = getTodayString();
-    const { data: mealData } = await supabase.from("nutrition_logs").select("*").eq("user_id", user.id).eq("logged_date", today).order("created_at", { ascending: true });
+    const { data: mealData } = await supabase.from("nutrition_logs").select("*").eq("user_id", user.id).eq("logged_date", getTodayString()).order("created_at", { ascending: true });
     setMeals(mealData || []);
     const { data: goalData } = await supabase.from("nutrition_goals").select("*").eq("user_id", user.id).single();
     if (goalData) setGoals(goalData);
@@ -419,33 +468,22 @@ function NutritionTracker({ user, onClose }) {
     if (form.carbs_g) entry.carbs_g = parseFloat(form.carbs_g);
     if (form.fats_g) entry.fats_g = parseFloat(form.fats_g);
     await supabase.from("nutrition_logs").insert(entry);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
     setForm({ meal_name: "", calories: "", protein_g: "", carbs_g: "", fats_g: "" });
-    loadData();
-    setSaving(false);
+    loadData(); setSaving(false);
   }
-  async function deleteMeal(id) {
-    await supabase.from("nutrition_logs").delete().eq("id", id);
-    loadData();
-  }
-  async function saveGoals() {
-    await supabase.from("nutrition_goals").upsert({ ...goals, user_id: user.id });
-    setShowGoals(false);
-  }
+  async function deleteMeal(id) { await supabase.from("nutrition_logs").delete().eq("id", id); loadData(); }
+  async function saveGoals() { await supabase.from("nutrition_goals").upsert({ ...goals, user_id: user.id }); setShowGoals(false); }
   const totalCals = meals.reduce((s, m) => s + (m.calories || 0), 0);
   const totalProtein = meals.reduce((s, m) => s + (parseFloat(m.protein_g) || 0), 0);
-  const totalCarbs = meals.reduce((s, m) => s + (parseFloat(m.carbs_g) || 0), 0);
-  const totalFats = meals.reduce((s, m) => s + (parseFloat(m.fats_g) || 0), 0);
   const calPct = Math.min(100, Math.round((totalCals / goals.calorie_target) * 100));
   const proteinPct = Math.min(100, Math.round((totalProtein / goals.protein_target) * 100));
   const goalColors = { bulk: "#4CAF50", cut: "#f44336", maintain: "#534AB7" };
-  const goalLabels = { bulk: "🏋️ Bulk", cut: "🔥 Cut", maintain: "⚖️ Maintain" };
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
-        <div style={{ flex: 1 }}><div style={{ fontSize: 16, fontWeight: 500 }}>Nutrition Tracker</div><div style={{ fontSize: 12, color: goalColors[goals.goal_type] }}>{goalLabels[goals.goal_type]}</div></div>
+        <div style={{ flex: 1 }}><div style={{ fontSize: 16, fontWeight: 500 }}>Nutrition Tracker</div></div>
         <button onClick={() => setShowGoals(!showGoals)} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>⚙️</button>
       </div>
       {showGoals && (
@@ -471,16 +509,16 @@ function NutritionTracker({ user, onClose }) {
       <div style={{ padding: "14px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
           <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Calories today</div>
+            <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Calories</div>
             <div style={{ fontSize: 22, fontWeight: 500, color: calPct >= 100 ? "#f44336" : "#e8e8f0" }}>{totalCals}</div>
             <div style={{ fontSize: 11, color: "#444" }}>/ {goals.calorie_target} kcal</div>
-            <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: calPct >= 100 ? "#f44336" : "#534AB7", borderRadius: 4, height: 4, width: `${calPct}%`, transition: "width 0.4s" }} /></div>
+            <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: calPct >= 100 ? "#f44336" : "#534AB7", borderRadius: 4, height: 4, width: `${calPct}%` }} /></div>
           </div>
           <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Protein today</div>
+            <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Protein</div>
             <div style={{ fontSize: 22, fontWeight: 500, color: proteinPct >= 100 ? "#4CAF50" : "#e8e8f0" }}>{totalProtein.toFixed(1)}g</div>
             <div style={{ fontSize: 11, color: "#444" }}>/ {goals.protein_target}g</div>
-            <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: proteinPct >= 100 ? "#4CAF50" : "#534AB7", borderRadius: 4, height: 4, width: `${proteinPct}%`, transition: "width 0.4s" }} /></div>
+            <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: proteinPct >= 100 ? "#4CAF50" : "#534AB7", borderRadius: 4, height: 4, width: `${proteinPct}%` }} /></div>
           </div>
         </div>
         <input value={form.meal_name} onChange={(e) => setForm((p) => ({ ...p, meal_name: e.target.value }))} placeholder="Meal name" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} />
@@ -502,7 +540,7 @@ function NutritionTracker({ user, onClose }) {
           <div key={meal.id} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{meal.meal_name}</div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 10 }}>
                 {meal.calories && <span style={{ fontSize: 12, color: "#534AB7" }}>{meal.calories} kcal</span>}
                 {meal.protein_g && <span style={{ fontSize: 12, color: "#666" }}>P: {meal.protein_g}g</span>}
               </div>
@@ -532,8 +570,6 @@ function ProgressCharts({ user, profile, onClose }) {
     }
     setLoading(false);
   }
-  const level = profile?.level || 1;
-  const rank = getRank(level).rank;
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
@@ -543,7 +579,7 @@ function ProgressCharts({ user, profile, onClose }) {
       {loading ? <div style={{ textAlign: "center", padding: 40, color: "#534AB7" }}>Loading...</div> : (
         <div style={{ padding: "16px 20px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
-            {[["Level", level], ["XP", profile?.total_xp || 0], ["Rank", rank]].map(([label, val]) => (
+            {[["Level", profile?.level || 1], ["XP", profile?.total_xp || 0], ["🔥 Streak", profile?.streak || 0]].map(([label, val]) => (
               <div key={label} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px", textAlign: "center" }}>
                 <div style={{ fontSize: 20, fontWeight: 500, color: "#AFA9EC" }}>{val}</div>
                 <div style={{ fontSize: 11, color: "#555" }}>{label}</div>
@@ -587,6 +623,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [completed, setCompleted] = useState([]);
   const [levelUpMsg, setLevelUpMsg] = useState(false);
+  const [streakMsg, setStreakMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState("home");
 
@@ -612,6 +649,45 @@ export default function App() {
     const { data: quests } = await supabase.from("quest_completions").select("quest_id").eq("user_id", u.id).eq("completed_date", today);
     setCompleted(quests ? quests.map((q) => q.quest_id) : []);
     setLoading(false);
+  }
+
+  async function updateStreak(newCompleted, prof) {
+    if (newCompleted.length !== 3) return; // Only trigger when hitting exactly 3
+    const today = getTodayString();
+    const yesterday = getYesterdayString();
+    const lastDate = prof.last_quest_date;
+
+    let newStreak = 1;
+    if (lastDate === yesterday) {
+      newStreak = (prof.streak || 0) + 1;
+    } else if (lastDate === today) {
+      return; // Already counted today
+    }
+
+    const newLongest = Math.max(prof.longest_streak || 0, newStreak);
+    await supabase.from("profiles").update({ streak: newStreak, last_quest_date: today, longest_streak: newLongest }).eq("id", prof.id);
+    setProfile(p => ({ ...p, streak: newStreak, last_quest_date: today, longest_streak: newLongest }));
+
+    // Check milestones
+    const milestone = STREAK_MILESTONES.find(m => m.days === newStreak);
+    if (milestone) {
+      const { data: existing } = await supabase.from("streak_rewards").select("id").eq("user_id", prof.id).eq("milestone", milestone.days);
+      if (!existing || existing.length === 0) {
+        await supabase.from("streak_rewards").insert({ user_id: prof.id, milestone: milestone.days });
+        const bonusXP = milestone.bonus;
+        const newXP = (prof.total_xp || 0) + bonusXP;
+        const newLevel = Math.floor(newXP / 200) + 1;
+        await supabase.from("profiles").update({ total_xp: newXP, level: newLevel }).eq("id", prof.id);
+        setProfile(p => ({ ...p, total_xp: newXP, level: newLevel }));
+        setStreakMsg({ ...milestone, streak: newStreak });
+        setTimeout(() => setStreakMsg(null), 4000);
+      }
+    }
+
+    if (newStreak > 1 && !milestone) {
+      setStreakMsg({ days: newStreak, label: `${newStreak} Day Streak!`, emoji: "🔥", bonus: 0 });
+      setTimeout(() => setStreakMsg(null), 2500);
+    }
   }
 
   async function toggleMode() {
@@ -641,7 +717,9 @@ export default function App() {
       if (newLevel > profile.level) { setLevelUpMsg(true); setTimeout(() => setLevelUpMsg(false), 3000); }
       await supabase.from("profiles").update({ total_xp: newXP, level: newLevel }).eq("id", user.id);
       setProfile((p) => ({ ...p, total_xp: newXP, level: newLevel }));
-      setCompleted((prev) => [...prev, id]);
+      const newCompleted = [...completed, id];
+      setCompleted(newCompleted);
+      await updateStreak(newCompleted, { ...profile, total_xp: newXP, level: newLevel });
     }
   }
 
@@ -649,10 +727,7 @@ export default function App() {
 
   if (!user) return <AuthScreen />;
   if (loading) return <div style={{ background: "#0a0a0f", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#534AB7", fontFamily: "sans-serif", fontSize: 18 }}>⚡ Loading your profile...</div>;
-
-  // Show onboarding if not complete
   if (!profile?.setup_complete) return <OnboardingScreen user={user} onComplete={(updates) => setProfile(p => ({ ...p, ...updates }))} />;
-
   if (screen === "body") return <BodyLogger user={user} onClose={() => setScreen("home")} />;
   if (screen === "nutrition") return <NutritionTracker user={user} onClose={() => setScreen("home")} />;
   if (screen === "progress") return <ProgressCharts user={user} profile={profile} onClose={() => setScreen("home")} />;
@@ -667,18 +742,31 @@ export default function App() {
   const nextRank = RANKS.find((r) => r.minLevel > level);
   const minQuestsReached = completed.length >= 3;
   const mode = profile?.mode || "home";
+  const streak = profile?.streak || 0;
 
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
+
       {levelUpMsg && (
         <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", background: "#534AB7", color: "#fff", padding: "14px 28px", borderRadius: "0 0 16px 16px", fontSize: 16, fontWeight: 500, zIndex: 999, textAlign: "center" }}>
           ⚡ LEVEL UP! You are now Level {level}!
         </div>
       )}
 
+      {streakMsg && (
+        <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", background: streakMsg.bonus > 0 ? "#1a1035" : "#1a1a0a", border: `1px solid ${streakMsg.bonus > 0 ? "#534AB7" : "#3a3a1a"}`, color: "#fff", padding: "14px 28px", borderRadius: "0 0 16px 16px", fontSize: 15, fontWeight: 500, zIndex: 999, textAlign: "center" }}>
+          {streakMsg.emoji} {streakMsg.label}{streakMsg.bonus > 0 ? ` — +${streakMsg.bonus} Bonus XP!` : ""}
+        </div>
+      )}
+
       <div style={{ background: "#0f0f1a", padding: "20px 20px 16px", borderBottom: "1px solid #1e1e2e" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <span style={{ background: "#1a1035", border: "1px solid #534AB7", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#AFA9EC" }}>Rank {rank.rank} — Hunter</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ background: "#1a1035", border: "1px solid #534AB7", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#AFA9EC" }}>Rank {rank.rank}</span>
+            {streak > 0 && (
+              <span style={{ background: "#1a1a0a", border: "1px solid #3a3a1a", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#ff8c00" }}>🔥 {streak}</span>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={toggleMode} style={{ background: mode === "gym" ? "#1a2a1a" : "#1a1035", border: `1px solid ${mode === "gym" ? "#4CAF50" : "#534AB7"}`, borderRadius: 6, padding: "3px 10px", fontSize: 12, color: mode === "gym" ? "#4CAF50" : "#AFA9EC", cursor: "pointer" }}>
               {mode === "gym" ? "🏋️ Gym" : "🏠 Home"}
@@ -686,10 +774,8 @@ export default function App() {
             <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#555", cursor: "pointer" }}>Logout</button>
           </div>
         </div>
-
-        {/* Avatar preview in header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => setScreen("avatar")} style={{ width: 56, height: 56, borderRadius: "50%", background: "#1a1035", border: "2px solid #534AB7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", padding: 2 }}>
+          <button onClick={() => setScreen("avatar")} style={{ width: 56, height: 56, borderRadius: "50%", background: "#1a1035", border: "2px solid #534AB7", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", padding: 2, flexShrink: 0 }}>
             <AvatarSVG rank={rank.rank} bodyType={profile?.body_type || "average"} goal={profile?.goal || "both"} animated={false} />
           </button>
           <div>
@@ -712,7 +798,25 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "12px 20px" }}>
+      {/* Streak milestones preview */}
+      <div style={{ padding: "10px 20px 0" }}>
+        <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px 14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: "#555" }}>🔥 STREAK MILESTONES</span>
+            <span style={{ fontSize: 12, color: "#ff8c00", fontWeight: 500 }}>{streak} days</span>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {STREAK_MILESTONES.map((m) => (
+              <div key={m.days} style={{ flex: 1, textAlign: "center", opacity: streak >= m.days ? 1 : 0.3 }}>
+                <div style={{ fontSize: 16 }}>{m.emoji}</div>
+                <div style={{ fontSize: 10, color: streak >= m.days ? "#ff8c00" : "#444" }}>{m.days}d</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "10px 20px 0" }}>
         {[["Strength", profile?.strength], ["Endurance", profile?.endurance], ["Vitality", profile?.vitality], ["Agility", profile?.agility]].map(([name, val]) => (
           <div key={name} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontSize: 20, fontWeight: 500 }}>{val || 10}</div>
@@ -721,7 +825,7 @@ export default function App() {
         ))}
       </div>
 
-      <div style={{ padding: "4px 20px" }}>
+      <div style={{ padding: "10px 20px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Quests</div>
           <div style={{ fontSize: 11, color: "#444" }}>Min 3 to level up</div>
@@ -765,7 +869,7 @@ export default function App() {
 
       <div style={{ padding: "12px 20px 0", display: "flex", flexDirection: "column", gap: 8 }}>
         {[
-          { screen: "avatar", icon: "⚡", title: "My Hunter", sub: "View your character & rank progression" },
+          { screen: "avatar", icon: "⚡", title: "My Hunter", sub: `View character • ${streak > 0 ? `🔥 ${streak} day streak` : "Start your streak today"}` },
           { screen: "quests", icon: "⚔️", title: "Quest Library", sub: "Browse & create custom quests" },
           { screen: "progress", icon: "📊", title: "Progress Charts", sub: "Weight, quests & history" },
           { screen: "nutrition", icon: "🥗", title: "Nutrition Tracker", sub: "Log meals, calories & macros" },
@@ -780,72 +884,6 @@ export default function App() {
             <div style={{ marginLeft: "auto", color: "#444", fontSize: 18 }}>›</div>
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function AuthScreen() {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-
-  async function handleSubmit() {
-    setLoading(true);
-    setError("");
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        setError(error.message);
-      } else if (data.user) {
-        await supabase.from("profiles").insert({ id: data.user.id, username: username || email.split("@")[0], total_xp: 0, level: 1, strength: 10, endurance: 10, vitality: 10, agility: 10, mode: "home", streak: 0, setup_complete: false });
-        setMessage("Account created! Check your email to confirm, then log in.");
-        setIsLogin(true);
-      }
-    }
-    setLoading(false);
-  }
-
-  return (
-    <div style={{ background: "#0a0a0f", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 380 }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>⚡</div>
-          <h1 style={{ color: "#e8e8f0", fontSize: 24, fontWeight: 600, margin: 0 }}>Hunter System</h1>
-          <p style={{ color: "#534AB7", margin: "6px 0 0", fontSize: 14 }}>Arise and begin your journey</p>
-        </div>
-        <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 16, padding: 24 }}>
-          <div style={{ display: "flex", marginBottom: 20, background: "#0a0a0f", borderRadius: 8, padding: 3 }}>
-            <button onClick={() => setIsLogin(true)} style={{ flex: 1, padding: "8px", borderRadius: 6, border: "none", background: isLogin ? "#534AB7" : "transparent", color: isLogin ? "#fff" : "#666", cursor: "pointer", fontSize: 14 }}>Login</button>
-            <button onClick={() => setIsLogin(false)} style={{ flex: 1, padding: "8px", borderRadius: 6, border: "none", background: !isLogin ? "#534AB7" : "transparent", color: !isLogin ? "#fff" : "#666", cursor: "pointer", fontSize: 14 }}>Sign Up</button>
-          </div>
-          {!isLogin && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Hunter Name</div>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your name" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-            </div>
-          )}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Email</div>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" type="email" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Password</div>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" type="password" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-          </div>
-          {error && <div style={{ background: "#2a0a0a", border: "1px solid #5a1a1a", borderRadius: 8, padding: "10px 12px", color: "#ff6b6b", fontSize: 13, marginBottom: 14 }}>{error}</div>}
-          {message && <div style={{ background: "#0a2a0a", border: "1px solid #1a5a1a", borderRadius: 8, padding: "10px 12px", color: "#6bff6b", fontSize: 13, marginBottom: 14 }}>{message}</div>}
-          <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
-            {loading ? "Loading..." : isLogin ? "Login" : "Create Account"}
-          </button>
-        </div>
       </div>
     </div>
   );
