@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import AvatarSVG from "./Avatar";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
@@ -50,6 +50,31 @@ function getYesterdayString() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) return false;
+  if (Notification.permission === "granted") return true;
+  const permission = await Notification.requestPermission();
+  return permission === "granted";
+}
+
+function scheduleNotification(hour) {
+  const now = new Date();
+  const scheduled = new Date();
+  scheduled.setHours(hour, 0, 0, 0);
+  if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1);
+  const delay = scheduled.getTime() - now.getTime();
+  setTimeout(() => {
+    if (Notification.permission === "granted") {
+      new Notification("⚡ Hunter System", {
+        body: "Your daily quests await. Don't break your streak!",
+        icon: "/vite.svg",
+        tag: "daily-quest-reminder",
+      });
+    }
+    scheduleNotification(hour);
+  }, delay);
 }
 
 function AuthScreen() {
@@ -121,58 +146,22 @@ function AuthScreen() {
 function OnboardingScreen({ user, onComplete }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({ body_type: "", goal: "", mode: "" });
-
   const steps = [
-    {
-      question: "Welcome, Hunter. Before you begin...",
-      subtitle: "What does your body look like right now?",
-      options: [
-        { value: "very_skinny", label: "Very Skinny", desc: "Quite thin, need to gain mass", emoji: "🦴" },
-        { value: "skinny", label: "Skinny", desc: "Lean but not very muscular", emoji: "😤" },
-        { value: "average", label: "Average", desc: "Normal build, some muscle", emoji: "🧍" },
-        { value: "chubby", label: "Chubby", desc: "A bit of extra weight", emoji: "🙂" },
-        { value: "overweight", label: "Overweight", desc: "Significantly above ideal weight", emoji: "💪" },
-      ],
-      key: "body_type",
-    },
-    {
-      question: "What is your main goal?",
-      subtitle: "This will shape your quest recommendations",
-      options: [
-        { value: "lose_weight", label: "Lose Weight", desc: "Burn fat and get leaner", emoji: "🔥" },
-        { value: "build_muscle", label: "Build Muscle", desc: "Get stronger and bigger", emoji: "💪" },
-        { value: "both", label: "Both", desc: "Lose fat and gain muscle", emoji: "⚡" },
-      ],
-      key: "goal",
-    },
-    {
-      question: "Where will you train?",
-      subtitle: "You can switch anytime later",
-      options: [
-        { value: "home", label: "At Home", desc: "No equipment needed", emoji: "🏠" },
-        { value: "gym", label: "At the Gym", desc: "Full equipment available", emoji: "🏋️" },
-      ],
-      key: "mode",
-    },
+    { question: "Welcome, Hunter. Before you begin...", subtitle: "What does your body look like right now?", options: [{ value: "very_skinny", label: "Very Skinny", desc: "Quite thin, need to gain mass", emoji: "🦴" }, { value: "skinny", label: "Skinny", desc: "Lean but not very muscular", emoji: "😤" }, { value: "average", label: "Average", desc: "Normal build, some muscle", emoji: "🧍" }, { value: "chubby", label: "Chubby", desc: "A bit of extra weight", emoji: "🙂" }, { value: "overweight", label: "Overweight", desc: "Significantly above ideal weight", emoji: "💪" }], key: "body_type" },
+    { question: "What is your main goal?", subtitle: "This will shape your quest recommendations", options: [{ value: "lose_weight", label: "Lose Weight", desc: "Burn fat and get leaner", emoji: "🔥" }, { value: "build_muscle", label: "Build Muscle", desc: "Get stronger and bigger", emoji: "💪" }, { value: "both", label: "Both", desc: "Lose fat and gain muscle", emoji: "⚡" }], key: "goal" },
+    { question: "Where will you train?", subtitle: "You can switch anytime later", options: [{ value: "home", label: "At Home", desc: "No equipment needed", emoji: "🏠" }, { value: "gym", label: "At the Gym", desc: "Full equipment available", emoji: "🏋️" }], key: "mode" },
   ];
-
   const current = steps[step];
-
   async function finishSetup(finalAnswers) {
     await supabase.from("profiles").update({ body_type: finalAnswers.body_type, goal: finalAnswers.goal, mode: finalAnswers.mode, setup_complete: true }).eq("id", user.id);
     onComplete({ ...finalAnswers, setup_complete: true });
   }
-
   function selectOption(value) {
     const newAnswers = { ...answers, [current.key]: value };
     setAnswers(newAnswers);
-    if (step < steps.length - 1) {
-      setTimeout(() => setStep(step + 1), 300);
-    } else {
-      setTimeout(() => finishSetup(newAnswers), 300);
-    }
+    if (step < steps.length - 1) setTimeout(() => setStep(step + 1), 300);
+    else setTimeout(() => finishSetup(newAnswers), 300);
   }
-
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px", maxWidth: 420, margin: "0 auto" }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>⚡</div>
@@ -186,13 +175,78 @@ function OnboardingScreen({ user, onComplete }) {
         {current.options.map((opt) => (
           <button key={opt.value} onClick={() => selectOption(opt.value)} style={{ width: "100%", background: answers[current.key] === opt.value ? "#1a1035" : "#0f0f1a", border: `1px solid ${answers[current.key] === opt.value ? "#534AB7" : "#1e1e2e"}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", color: "#e8e8f0", textAlign: "left" }}>
             <div style={{ fontSize: 28, width: 36, textAlign: "center" }}>{opt.emoji}</div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 500 }}>{opt.label}</div>
-              <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{opt.desc}</div>
-            </div>
+            <div><div style={{ fontSize: 15, fontWeight: 500 }}>{opt.label}</div><div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{opt.desc}</div></div>
             {answers[current.key] === opt.value && <div style={{ marginLeft: "auto", color: "#534AB7", fontSize: 18 }}>✓</div>}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function NotificationSettings({ user, profile, onSave, onClose }) {
+  const [enabled, setEnabled] = useState(profile?.notify_enabled || false);
+  const [hour, setHour] = useState(profile?.notify_hour || 19);
+  const [saving, setSaving] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState(typeof Notification !== "undefined" ? Notification.permission : "default");
+
+  async function save() {
+    setSaving(true);
+    if (enabled) {
+      const granted = await requestNotificationPermission();
+      setPermissionStatus(granted ? "granted" : "denied");
+      if (granted) scheduleNotification(hour);
+    }
+    await supabase.from("profiles").update({ notify_enabled: enabled, notify_hour: hour }).eq("id", user.id);
+    onSave({ notify_enabled: enabled, notify_hour: hour });
+    setSaving(false);
+  }
+
+  async function testNotification() {
+    const granted = await requestNotificationPermission();
+    if (granted) new Notification("⚡ Hunter System", { body: "This is your daily quest reminder! Stay consistent, Hunter.", icon: "/vite.svg" });
+  }
+
+  return (
+    <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
+      <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 8, padding: "6px 12px", color: "#888", cursor: "pointer", fontSize: 13 }}>← Back</button>
+        <div><div style={{ fontSize: 16, fontWeight: 500 }}>Notifications</div><div style={{ fontSize: 12, color: "#534AB7" }}>Daily quest reminders</div></div>
+      </div>
+      <div style={{ padding: "20px" }}>
+        <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "16px", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div><div style={{ fontSize: 15, fontWeight: 500 }}>Daily Reminders</div><div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>Get reminded to complete your quests</div></div>
+            <div onClick={() => setEnabled(!enabled)} style={{ width: 44, height: 24, borderRadius: 12, background: enabled ? "#534AB7" : "#1a1a2e", cursor: "pointer", position: "relative", transition: "background 0.3s" }}>
+              <div style={{ position: "absolute", top: 2, left: enabled ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.3s" }} />
+            </div>
+          </div>
+          {permissionStatus === "denied" && <div style={{ background: "#2a0a0a", border: "1px solid #5a1a1a", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#ff6b6b", marginTop: 10 }}>Notifications are blocked. Please enable them in your browser settings.</div>}
+        </div>
+        {enabled && (
+          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "16px", marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Reminder Time</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[6, 7, 8, 9, 12, 17, 18, 19, 20, 21].map((h) => (
+                <button key={h} onClick={() => setHour(h)} style={{ padding: "10px", borderRadius: 8, border: `1px solid ${hour === h ? "#534AB7" : "#1e1e2e"}`, background: hour === h ? "#1a1035" : "transparent", color: hour === h ? "#AFA9EC" : "#555", cursor: "pointer", fontSize: 13 }}>
+                  {h === 12 ? "12:00 PM" : h > 12 ? `${h - 12}:00 PM` : `${h}:00 AM`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "16px", marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>What you'll receive</div>
+          {[["⚡", "Daily quest reminder at your chosen time"], ["🔥", "Streak milestone celebrations"], ["👑", "Level up notifications"]].map(([e, t]) => (
+            <div key={t} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>{e}</span><span style={{ fontSize: 13, color: "#888" }}>{t}</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={testNotification} style={{ width: "100%", background: "transparent", border: "1px solid #534AB7", color: "#AFA9EC", borderRadius: 8, padding: "12px", fontSize: 14, cursor: "pointer", marginBottom: 10 }}>Send Test Notification</button>
+        <button onClick={save} disabled={saving} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
+          {saving ? "Saving..." : "Save Settings"}
+        </button>
       </div>
     </div>
   );
@@ -202,7 +256,6 @@ function AvatarScreen({ user, profile, onClose }) {
   const rank = getRank(profile?.level || 1).rank;
   const RANK_TITLES = { E: "Awakened Hunter", D: "Iron Body", C: "Steel Warrior", B: "Shadow Blade", A: "Monarch", S: "Shadow Sovereign" };
   const nextRankInfo = RANKS.find(r => r.minLevel > (profile?.level || 1));
-
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
@@ -215,8 +268,6 @@ function AvatarScreen({ user, profile, onClose }) {
         </div>
         <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>{profile?.username || "Hunter"}</div>
         <div style={{ fontSize: 14, color: "#534AB7", marginBottom: 16 }}>{RANK_TITLES[rank]}</div>
-
-        {/* Streak display on avatar screen */}
         <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "14px 20px", marginBottom: 16, width: "100%", display: "flex", justifyContent: "space-around" }}>
           {[["🔥", profile?.streak || 0, "Day Streak"], ["⚡", profile?.level || 1, "Level"], ["👑", profile?.longest_streak || 0, "Best Streak"]].map(([icon, val, label]) => (
             <div key={label} style={{ textAlign: "center" }}>
@@ -226,7 +277,6 @@ function AvatarScreen({ user, profile, onClose }) {
             </div>
           ))}
         </div>
-
         <div style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 12, padding: "16px", marginBottom: 14 }}>
           <div style={{ fontSize: 12, color: "#555", marginBottom: 10 }}>RANK PROGRESSION</div>
           {RANKS.map((r) => {
@@ -235,10 +285,7 @@ function AvatarScreen({ user, profile, onClose }) {
             return (
               <div key={r.rank} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, opacity: unlocked ? 1 : 0.4 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: isCurrent ? "#1a1035" : "#0a0a0f", border: `1.5px solid ${isCurrent ? "#534AB7" : "#1e1e2e"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: isCurrent ? "#AFA9EC" : "#555", fontWeight: 700 }}>{r.rank}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, color: unlocked ? "#e8e8f0" : "#444" }}>{r.title}</div>
-                  <div style={{ fontSize: 11, color: "#444" }}>Level {r.minLevel}+</div>
-                </div>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 13, color: unlocked ? "#e8e8f0" : "#444" }}>{r.title}</div><div style={{ fontSize: 11, color: "#444" }}>Level {r.minLevel}+</div></div>
                 {isCurrent && <span style={{ fontSize: 11, background: "#1a1035", color: "#534AB7", padding: "2px 8px", borderRadius: 10, border: "1px solid #534AB7" }}>Current</span>}
                 {unlocked && !isCurrent && <span style={{ fontSize: 12, color: "#4CAF50" }}>✓</span>}
                 {!unlocked && <span style={{ fontSize: 11, color: "#333" }}>{r.minLevel - (profile?.level || 1)} lvls</span>}
@@ -246,7 +293,6 @@ function AvatarScreen({ user, profile, onClose }) {
             );
           })}
         </div>
-
         {nextRankInfo && (
           <div style={{ width: "100%", background: "#0f0f1a", border: "1px solid #534AB7", borderRadius: 12, padding: "14px" }}>
             <div style={{ fontSize: 12, color: "#534AB7", marginBottom: 6 }}>NEXT RANK</div>
@@ -284,15 +330,11 @@ function QuestLibrary({ user, profile, onClose }) {
     loadData(); setSaving(false); setTab("browse");
   }
   async function toggleQuest(questId) {
-    if (myQuests.includes(questId)) {
-      await supabase.from("user_custom_quests").delete().eq("user_id", user.id).eq("quest_id", questId);
-    } else {
-      await supabase.from("user_custom_quests").insert({ user_id: user.id, quest_id: questId });
-    }
+    if (myQuests.includes(questId)) await supabase.from("user_custom_quests").delete().eq("user_id", user.id).eq("quest_id", questId);
+    else await supabase.from("user_custom_quests").insert({ user_id: user.id, quest_id: questId });
     loadData();
   }
   const filtered = quests.filter(q => filter === "all" || q.mode === filter || q.mode === "both");
-  const categories = ["strength", "cardio", "flexibility", "core", "general"];
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
@@ -323,9 +365,7 @@ function QuestLibrary({ user, profile, onClose }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, color: "#444" }}>by {q.creator_name}</span>
                   <span style={{ fontSize: 11, background: "#1a1a2e", padding: "2px 6px", borderRadius: 4, color: "#666" }}>{q.mode}</span>
-                  <div style={{ marginLeft: "auto" }}>
-                    <button onClick={() => toggleQuest(q.id)} style={{ background: added ? "#1a1035" : "#534AB7", border: "none", borderRadius: 6, padding: "4px 10px", color: "#fff", cursor: "pointer", fontSize: 12 }}>{added ? "✓ Added" : "+ Add"}</button>
-                  </div>
+                  <div style={{ marginLeft: "auto" }}><button onClick={() => toggleQuest(q.id)} style={{ background: added ? "#1a1035" : "#534AB7", border: "none", borderRadius: 6, padding: "4px 10px", color: "#fff", cursor: "pointer", fontSize: 12 }}>{added ? "✓ Added" : "+ Add"}</button></div>
                 </div>
               </div>
             );
@@ -334,39 +374,25 @@ function QuestLibrary({ user, profile, onClose }) {
       )}
       {tab === "create" && (
         <div style={{ padding: "16px 20px" }}>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Quest Name</div>
-            <input value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. 20 push-ups" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Description (optional)</div>
-            <input value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Any tips..." style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-          </div>
+          {[["Quest Name", "name", "e.g. 20 push-ups"], ["Description (optional)", "description", "Any tips..."]].map(([label, key, ph]) => (
+            <div key={key} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</div>
+              <input value={form[key]} onChange={(e) => setForm(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+          ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>XP Reward</div>
-              <input value={form.xp} onChange={(e) => setForm(p => ({ ...p, xp: e.target.value }))} type="number" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Mode</div>
-              <select value={form.mode} onChange={(e) => setForm(p => ({ ...p, mode: e.target.value }))} style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }}>
-                <option value="both">Both</option>
-                <option value="home">Home</option>
-                <option value="gym">Gym</option>
-              </select>
-            </div>
+            <div><div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>XP Reward</div><input value={form.xp} onChange={(e) => setForm(p => ({ ...p, xp: e.target.value }))} type="number" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} /></div>
+            <div><div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Mode</div><select value={form.mode} onChange={(e) => setForm(p => ({ ...p, mode: e.target.value }))} style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }}><option value="both">Both</option><option value="home">Home</option><option value="gym">Gym</option></select></div>
           </div>
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Category</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {categories.map(cat => (
+              {["strength", "cardio", "flexibility", "core", "general"].map(cat => (
                 <button key={cat} onClick={() => setForm(p => ({ ...p, category: cat }))} style={{ padding: "6px 12px", borderRadius: 20, border: `1px solid ${form.category === cat ? "#534AB7" : "#1e1e2e"}`, background: form.category === cat ? "#1a1035" : "transparent", color: form.category === cat ? "#AFA9EC" : "#555", cursor: "pointer", fontSize: 12, textTransform: "capitalize" }}>{cat}</button>
               ))}
             </div>
           </div>
-          <button onClick={createQuest} disabled={saving || !form.name} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
-            {saving ? "Creating..." : "Create & Share Quest"}
-          </button>
+          <button onClick={createQuest} disabled={saving || !form.name} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>{saving ? "Creating..." : "Create & Share Quest"}</button>
         </div>
       )}
     </div>
@@ -392,14 +418,6 @@ function BodyLogger({ user, onClose }) {
     setForm({ weight_kg: "", height_cm: "", chest_cm: "", waist_cm: "", hips_cm: "", bicep_cm: "", notes: "" });
     loadLogs(); setSaving(false);
   }
-  const fields = [
-    { key: "weight_kg", label: "Weight (kg)", placeholder: "e.g. 75.5" },
-    { key: "height_cm", label: "Height (cm)", placeholder: "e.g. 178" },
-    { key: "chest_cm", label: "Chest (cm)", placeholder: "e.g. 95" },
-    { key: "waist_cm", label: "Waist (cm)", placeholder: "e.g. 82" },
-    { key: "hips_cm", label: "Hips (cm)", placeholder: "e.g. 90" },
-    { key: "bicep_cm", label: "Bicep (cm)", placeholder: "e.g. 35" },
-  ];
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
       <div style={{ background: "#0f0f1a", padding: "16px 20px", borderBottom: "1px solid #1e1e2e", display: "flex", alignItems: "center", gap: 12 }}>
@@ -408,20 +426,12 @@ function BodyLogger({ user, onClose }) {
       </div>
       <div style={{ padding: "16px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {fields.map(({ key, label, placeholder }) => (
-            <div key={key}>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</div>
-              <input value={form[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} type="number" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-            </div>
+          {[["weight_kg", "Weight (kg)", "75.5"], ["height_cm", "Height (cm)", "178"], ["chest_cm", "Chest (cm)", "95"], ["waist_cm", "Waist (cm)", "82"], ["hips_cm", "Hips (cm)", "90"], ["bicep_cm", "Bicep (cm)", "35"]].map(([key, label, ph]) => (
+            <div key={key}><div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</div><input value={form[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} placeholder={`e.g. ${ph}`} type="number" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} /></div>
           ))}
         </div>
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Notes (optional)</div>
-          <input value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="How are you feeling?" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-        </div>
-        <button onClick={saveLog} disabled={saving} style={{ width: "100%", marginTop: 14, background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
-          {saved ? "✓ Saved!" : saving ? "Saving..." : "Save Measurements"}
-        </button>
+        <div style={{ marginTop: 10 }}><div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Notes (optional)</div><input value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="How are you feeling?" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} /></div>
+        <button onClick={saveLog} disabled={saving} style={{ width: "100%", marginTop: 14, background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>{saved ? "✓ Saved!" : saving ? "Saving..." : "Save Measurements"}</button>
       </div>
       <div style={{ padding: "0 20px" }}>
         <div style={{ fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Previous Logs</div>
@@ -433,10 +443,7 @@ function BodyLogger({ user, onClose }) {
               {log.weight_kg && <span style={{ fontSize: 13, color: "#534AB7", fontWeight: 500 }}>{log.weight_kg} kg</span>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              {log.height_cm && <div style={{ fontSize: 12, color: "#666" }}>H: <span style={{ color: "#c0c0d0" }}>{log.height_cm}cm</span></div>}
-              {log.chest_cm && <div style={{ fontSize: 12, color: "#666" }}>C: <span style={{ color: "#c0c0d0" }}>{log.chest_cm}cm</span></div>}
-              {log.waist_cm && <div style={{ fontSize: 12, color: "#666" }}>W: <span style={{ color: "#c0c0d0" }}>{log.waist_cm}cm</span></div>}
-              {log.bicep_cm && <div style={{ fontSize: 12, color: "#666" }}>B: <span style={{ color: "#c0c0d0" }}>{log.bicep_cm}cm</span></div>}
+              {[["height_cm", "H"], ["chest_cm", "C"], ["waist_cm", "W"], ["bicep_cm", "B"]].map(([k, l]) => log[k] ? <div key={k} style={{ fontSize: 12, color: "#666" }}>{l}: <span style={{ color: "#c0c0d0" }}>{log[k]}cm</span></div> : null)}
             </div>
           </div>
         ))}
@@ -489,62 +496,38 @@ function NutritionTracker({ user, onClose }) {
       {showGoals && (
         <div style={{ background: "#0f0f1a", borderBottom: "1px solid #1e1e2e", padding: "16px 20px" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {["bulk", "maintain", "cut"].map((g) => (
-              <button key={g} onClick={() => setGoals((p) => ({ ...p, goal_type: g }))} style={{ flex: 1, padding: "8px", borderRadius: 8, border: `1px solid ${goals.goal_type === g ? goalColors[g] : "#1e1e2e"}`, background: goals.goal_type === g ? "#1a1035" : "transparent", color: goals.goal_type === g ? goalColors[g] : "#555", cursor: "pointer", fontSize: 13, textTransform: "capitalize" }}>{g}</button>
-            ))}
+            {["bulk", "maintain", "cut"].map((g) => (<button key={g} onClick={() => setGoals((p) => ({ ...p, goal_type: g }))} style={{ flex: 1, padding: "8px", borderRadius: 8, border: `1px solid ${goals.goal_type === g ? goalColors[g] : "#1e1e2e"}`, background: goals.goal_type === g ? "#1a1035" : "transparent", color: goals.goal_type === g ? goalColors[g] : "#555", cursor: "pointer", fontSize: 13, textTransform: "capitalize" }}>{g}</button>))}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Daily Calories</div>
-              <input value={goals.calorie_target} onChange={(e) => setGoals((p) => ({ ...p, calorie_target: parseInt(e.target.value) }))} type="number" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>Protein (g)</div>
-              <input value={goals.protein_target} onChange={(e) => setGoals((p) => ({ ...p, protein_target: parseInt(e.target.value) }))} type="number" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-            </div>
+            {[["calorie_target", "Daily Calories"], ["protein_target", "Protein (g)"]].map(([k, l]) => (<div key={k}><div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{l}</div><input value={goals[k]} onChange={(e) => setGoals((p) => ({ ...p, [k]: parseInt(e.target.value) }))} type="number" style={{ width: "100%", background: "#0a0a0f", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} /></div>))}
           </div>
           <button onClick={saveGoals} style={{ width: "100%", background: "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "10px", fontSize: 14, cursor: "pointer" }}>Save Goal</button>
         </div>
       )}
       <div style={{ padding: "14px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Calories</div>
-            <div style={{ fontSize: 22, fontWeight: 500, color: calPct >= 100 ? "#f44336" : "#e8e8f0" }}>{totalCals}</div>
-            <div style={{ fontSize: 11, color: "#444" }}>/ {goals.calorie_target} kcal</div>
-            <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: calPct >= 100 ? "#f44336" : "#534AB7", borderRadius: 4, height: 4, width: `${calPct}%` }} /></div>
-          </div>
-          <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>Protein</div>
-            <div style={{ fontSize: 22, fontWeight: 500, color: proteinPct >= 100 ? "#4CAF50" : "#e8e8f0" }}>{totalProtein.toFixed(1)}g</div>
-            <div style={{ fontSize: 11, color: "#444" }}>/ {goals.protein_target}g</div>
-            <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: proteinPct >= 100 ? "#4CAF50" : "#534AB7", borderRadius: 4, height: 4, width: `${proteinPct}%` }} /></div>
-          </div>
+          {[["Calories", totalCals, goals.calorie_target, "kcal", calPct], ["Protein", totalProtein.toFixed(1), goals.protein_target, "g", proteinPct]].map(([label, val, target, unit, pct]) => (
+            <div key={label} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>{label}</div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: pct >= 100 ? (label === "Calories" ? "#f44336" : "#4CAF50") : "#e8e8f0" }}>{val}</div>
+              <div style={{ fontSize: 11, color: "#444" }}>/ {target} {unit}</div>
+              <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: pct >= 100 ? (label === "Calories" ? "#f44336" : "#4CAF50") : "#534AB7", borderRadius: 4, height: 4, width: `${pct}%` }} /></div>
+            </div>
+          ))}
         </div>
         <input value={form.meal_name} onChange={(e) => setForm((p) => ({ ...p, meal_name: e.target.value }))} placeholder="Meal name" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
           {[["calories", "Calories"], ["protein_g", "Protein (g)"], ["carbs_g", "Carbs (g)"], ["fats_g", "Fats (g)"]].map(([key, label]) => (
-            <div key={key}>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</div>
-              <input value={form[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} type="number" placeholder="0" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} />
-            </div>
+            <div key={key}><div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</div><input value={form[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} type="number" placeholder="0" style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 8, padding: "10px 12px", color: "#e8e8f0", fontSize: 14, boxSizing: "border-box" }} /></div>
           ))}
         </div>
-        <button onClick={saveMeal} disabled={saving || !form.meal_name} style={{ width: "100%", background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
-          {saved ? "✓ Added!" : saving ? "Saving..." : "+ Add Meal"}
-        </button>
+        <button onClick={saveMeal} disabled={saving || !form.meal_name} style={{ width: "100%", background: saved ? "#1a4a1a" : "#534AB7", color: "#fff", border: "none", borderRadius: 8, padding: "12px", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>{saved ? "✓ Added!" : saving ? "Saving..." : "+ Add Meal"}</button>
       </div>
       <div style={{ padding: "0 20px" }}>
         {meals.length === 0 && <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "20px", textAlign: "center", color: "#444", fontSize: 14 }}>No meals logged yet!</div>}
         {meals.map((meal) => (
           <div key={meal.id} style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{meal.meal_name}</div>
-              <div style={{ display: "flex", gap: 10 }}>
-                {meal.calories && <span style={{ fontSize: 12, color: "#534AB7" }}>{meal.calories} kcal</span>}
-                {meal.protein_g && <span style={{ fontSize: 12, color: "#666" }}>P: {meal.protein_g}g</span>}
-              </div>
-            </div>
+            <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{meal.meal_name}</div><div style={{ display: "flex", gap: 10 }}>{meal.calories && <span style={{ fontSize: 12, color: "#534AB7" }}>{meal.calories} kcal</span>}{meal.protein_g && <span style={{ fontSize: 12, color: "#666" }}>P: {meal.protein_g}g</span>}</div></div>
             <button onClick={() => deleteMeal(meal.id)} style={{ background: "transparent", border: "none", color: "#333", cursor: "pointer", fontSize: 18 }}>×</button>
           </div>
         ))}
@@ -626,6 +609,7 @@ export default function App() {
   const [streakMsg, setStreakMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState("home");
+  const notifScheduled = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -645,6 +629,10 @@ export default function App() {
     setLoading(true);
     const { data: prof } = await supabase.from("profiles").select("*").eq("id", u.id).single();
     setProfile(prof);
+    if (prof?.notify_enabled && !notifScheduled.current) {
+      notifScheduled.current = true;
+      scheduleNotification(prof?.notify_hour || 19);
+    }
     const today = getTodayString();
     const { data: quests } = await supabase.from("quest_completions").select("quest_id").eq("user_id", u.id).eq("completed_date", today);
     setCompleted(quests ? quests.map((q) => q.quest_id) : []);
@@ -652,39 +640,31 @@ export default function App() {
   }
 
   async function updateStreak(newCompleted, prof) {
-    if (newCompleted.length !== 3) return; // Only trigger when hitting exactly 3
+    if (newCompleted.length !== 3) return;
     const today = getTodayString();
     const yesterday = getYesterdayString();
     const lastDate = prof.last_quest_date;
-
     let newStreak = 1;
-    if (lastDate === yesterday) {
-      newStreak = (prof.streak || 0) + 1;
-    } else if (lastDate === today) {
-      return; // Already counted today
-    }
-
+    if (lastDate === yesterday) newStreak = (prof.streak || 0) + 1;
+    else if (lastDate === today) return;
     const newLongest = Math.max(prof.longest_streak || 0, newStreak);
     await supabase.from("profiles").update({ streak: newStreak, last_quest_date: today, longest_streak: newLongest }).eq("id", prof.id);
     setProfile(p => ({ ...p, streak: newStreak, last_quest_date: today, longest_streak: newLongest }));
-
-    // Check milestones
     const milestone = STREAK_MILESTONES.find(m => m.days === newStreak);
     if (milestone) {
       const { data: existing } = await supabase.from("streak_rewards").select("id").eq("user_id", prof.id).eq("milestone", milestone.days);
       if (!existing || existing.length === 0) {
         await supabase.from("streak_rewards").insert({ user_id: prof.id, milestone: milestone.days });
-        const bonusXP = milestone.bonus;
-        const newXP = (prof.total_xp || 0) + bonusXP;
+        const newXP = (prof.total_xp || 0) + milestone.bonus;
         const newLevel = Math.floor(newXP / 200) + 1;
         await supabase.from("profiles").update({ total_xp: newXP, level: newLevel }).eq("id", prof.id);
         setProfile(p => ({ ...p, total_xp: newXP, level: newLevel }));
         setStreakMsg({ ...milestone, streak: newStreak });
         setTimeout(() => setStreakMsg(null), 4000);
+        return;
       }
     }
-
-    if (newStreak > 1 && !milestone) {
+    if (newStreak > 1) {
       setStreakMsg({ days: newStreak, label: `${newStreak} Day Streak!`, emoji: "🔥", bonus: 0 });
       setTimeout(() => setStreakMsg(null), 2500);
     }
@@ -733,6 +713,7 @@ export default function App() {
   if (screen === "progress") return <ProgressCharts user={user} profile={profile} onClose={() => setScreen("home")} />;
   if (screen === "quests") return <QuestLibrary user={user} profile={profile} onClose={() => setScreen("home")} />;
   if (screen === "avatar") return <AvatarScreen user={user} profile={profile} onClose={() => setScreen("home")} />;
+  if (screen === "notifications") return <NotificationSettings user={user} profile={profile} onSave={(updates) => { setProfile(p => ({ ...p, ...updates })); setScreen("home"); }} onClose={() => setScreen("home")} />;
 
   const QUESTS = profile?.mode === "gym" ? GYM_QUESTS : HOME_QUESTS;
   const level = profile?.level || 1;
@@ -746,13 +727,11 @@ export default function App() {
 
   return (
     <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "#e8e8f0", fontFamily: "sans-serif", maxWidth: 420, margin: "0 auto", padding: "0 0 80px" }}>
-
       {levelUpMsg && (
         <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", background: "#534AB7", color: "#fff", padding: "14px 28px", borderRadius: "0 0 16px 16px", fontSize: 16, fontWeight: 500, zIndex: 999, textAlign: "center" }}>
           ⚡ LEVEL UP! You are now Level {level}!
         </div>
       )}
-
       {streakMsg && (
         <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", background: streakMsg.bonus > 0 ? "#1a1035" : "#1a1a0a", border: `1px solid ${streakMsg.bonus > 0 ? "#534AB7" : "#3a3a1a"}`, color: "#fff", padding: "14px 28px", borderRadius: "0 0 16px 16px", fontSize: 15, fontWeight: 500, zIndex: 999, textAlign: "center" }}>
           {streakMsg.emoji} {streakMsg.label}{streakMsg.bonus > 0 ? ` — +${streakMsg.bonus} Bonus XP!` : ""}
@@ -763,14 +742,10 @@ export default function App() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ background: "#1a1035", border: "1px solid #534AB7", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#AFA9EC" }}>Rank {rank.rank}</span>
-            {streak > 0 && (
-              <span style={{ background: "#1a1a0a", border: "1px solid #3a3a1a", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#ff8c00" }}>🔥 {streak}</span>
-            )}
+            {streak > 0 && <span style={{ background: "#1a1a0a", border: "1px solid #3a3a1a", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#ff8c00" }}>🔥 {streak}</span>}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={toggleMode} style={{ background: mode === "gym" ? "#1a2a1a" : "#1a1035", border: `1px solid ${mode === "gym" ? "#4CAF50" : "#534AB7"}`, borderRadius: 6, padding: "3px 10px", fontSize: 12, color: mode === "gym" ? "#4CAF50" : "#AFA9EC", cursor: "pointer" }}>
-              {mode === "gym" ? "🏋️ Gym" : "🏠 Home"}
-            </button>
+            <button onClick={toggleMode} style={{ background: mode === "gym" ? "#1a2a1a" : "#1a1035", border: `1px solid ${mode === "gym" ? "#4CAF50" : "#534AB7"}`, borderRadius: 6, padding: "3px 10px", fontSize: 12, color: mode === "gym" ? "#4CAF50" : "#AFA9EC", cursor: "pointer" }}>{mode === "gym" ? "🏋️ Gym" : "🏠 Home"}</button>
             <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid #1e1e2e", borderRadius: 6, padding: "3px 10px", fontSize: 12, color: "#555", cursor: "pointer" }}>Logout</button>
           </div>
         </div>
@@ -793,12 +768,9 @@ export default function App() {
         <div style={{ background: "#1a1a2e", borderRadius: 4, height: 8 }}>
           <div style={{ background: "#534AB7", borderRadius: 4, height: 8, width: `${(xpIntoLevel / 200) * 100}%`, transition: "width 0.4s" }} />
         </div>
-        <div style={{ marginTop: 6, fontSize: 11, color: "#444" }}>
-          {nextRank ? `Next rank at Level ${nextRank.minLevel} — ${nextRank.rank} Rank` : "Max Rank — Shadow Sovereign"}
-        </div>
+        <div style={{ marginTop: 6, fontSize: 11, color: "#444" }}>{nextRank ? `Next rank at Level ${nextRank.minLevel} — ${nextRank.rank} Rank` : "Max Rank — Shadow Sovereign"}</div>
       </div>
 
-      {/* Streak milestones preview */}
       <div style={{ padding: "10px 20px 0" }}>
         <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -830,23 +802,13 @@ export default function App() {
           <div style={{ fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Quests</div>
           <div style={{ fontSize: 11, color: "#444" }}>Min 3 to level up</div>
         </div>
-        {!minQuestsReached && completed.length > 0 && (
-          <div style={{ background: "#1a1a0a", border: "1px solid #3a3a1a", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#888" }}>
-            ⚡ {3 - completed.length} more quest{3 - completed.length > 1 ? "s" : ""} to earn XP today!
-          </div>
-        )}
-        {minQuestsReached && (
-          <div style={{ background: "#0a1a0a", border: "1px solid #1a3a1a", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#4CAF50" }}>
-            ✓ Minimum reached! Keep going for bonus XP!
-          </div>
-        )}
+        {!minQuestsReached && completed.length > 0 && <div style={{ background: "#1a1a0a", border: "1px solid #3a3a1a", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#888" }}>⚡ {3 - completed.length} more quest{3 - completed.length > 1 ? "s" : ""} to earn XP today!</div>}
+        {minQuestsReached && <div style={{ background: "#0a1a0a", border: "1px solid #1a3a1a", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#4CAF50" }}>✓ Minimum reached! Keep going for bonus XP!</div>}
         {QUESTS.map((q) => {
           const done = completed.includes(q.id);
           return (
             <div key={q.id} onClick={() => toggleQuest(q.id)} style={{ background: "#0f0f1a", border: `1px solid ${done ? "#534AB7" : "#1e1e2e"}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, marginBottom: 8, cursor: "pointer", transition: "border 0.2s" }}>
-              <div style={{ width: 22, height: 22, borderRadius: "50%", background: done ? "#534AB7" : "transparent", border: `2px solid ${done ? "#534AB7" : "#444"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {done && <span style={{ color: "#fff", fontSize: 13 }}>✓</span>}
-              </div>
+              <div style={{ width: 22, height: 22, borderRadius: "50%", background: done ? "#534AB7" : "transparent", border: `2px solid ${done ? "#534AB7" : "#444"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{done && <span style={{ color: "#fff", fontSize: 13 }}>✓</span>}</div>
               <span style={{ flex: 1, fontSize: 14, color: done ? "#666" : "#c0c0d0", textDecoration: done ? "line-through" : "none" }}>{q.name}</span>
               <span style={{ fontSize: 12, color: "#534AB7", fontWeight: 500 }}>+{q.xp} XP</span>
             </div>
@@ -858,12 +820,8 @@ export default function App() {
         <div style={{ background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "12px 14px" }}>
           <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>Quests completed today</div>
           <div style={{ fontSize: 22, fontWeight: 500, color: minQuestsReached ? "#4CAF50" : "#AFA9EC" }}>{completed.length} / {QUESTS.length}</div>
-          <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}>
-            <div style={{ background: minQuestsReached ? "#4CAF50" : "#534AB7", borderRadius: 4, height: 4, width: `${(completed.length / QUESTS.length) * 100}%`, transition: "width 0.4s" }} />
-          </div>
-          <div style={{ marginTop: 6, fontSize: 11, color: "#444" }}>
-            {completed.length < 3 ? `${3 - completed.length} more to reach daily minimum` : completed.length === QUESTS.length ? "⚡ All quests complete! Come back tomorrow!" : `${QUESTS.length - completed.length} quests remaining`}
-          </div>
+          <div style={{ background: "#1a1a2e", borderRadius: 4, height: 4, marginTop: 8 }}><div style={{ background: minQuestsReached ? "#4CAF50" : "#534AB7", borderRadius: 4, height: 4, width: `${(completed.length / QUESTS.length) * 100}%`, transition: "width 0.4s" }} /></div>
+          <div style={{ marginTop: 6, fontSize: 11, color: "#444" }}>{completed.length < 3 ? `${3 - completed.length} more to reach daily minimum` : completed.length === QUESTS.length ? "⚡ All quests complete! Come back tomorrow!" : `${QUESTS.length - completed.length} quests remaining`}</div>
         </div>
       </div>
 
@@ -874,6 +832,7 @@ export default function App() {
           { screen: "progress", icon: "📊", title: "Progress Charts", sub: "Weight, quests & history" },
           { screen: "nutrition", icon: "🥗", title: "Nutrition Tracker", sub: "Log meals, calories & macros" },
           { screen: "body", icon: "📏", title: "Body Measurements", sub: "Log weight & measurements" },
+          { screen: "notifications", icon: "🔔", title: "Notifications", sub: "Set your daily reminder time" },
         ].map((item) => (
           <button key={item.screen} onClick={() => setScreen(item.screen)} style={{ width: "100%", background: "#0f0f1a", border: "1px solid #1e1e2e", borderRadius: 10, padding: "14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", color: "#e8e8f0" }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: "#1a1035", border: "1px solid #534AB7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{item.icon}</div>
