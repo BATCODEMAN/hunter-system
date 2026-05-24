@@ -20,19 +20,19 @@ const GYM_QUESTS = [
   { id: 6, name: "Deadlift 3x8", xp: 80 },
 ];
 const RANKS = [
-  { minLevel: 1, rank: "E", title: "Awakened Hunter" },
+  { minLevel: 1, rank: "E", title: "Awakened" },
   { minLevel: 5, rank: "D", title: "Iron Body" },
   { minLevel: 10, rank: "C", title: "Steel Warrior" },
   { minLevel: 20, rank: "B", title: "Shadow Blade" },
   { minLevel: 35, rank: "A", title: "Monarch" },
-  { minLevel: 50, rank: "S", title: "Shadow Sovereign" },
+  { minLevel: 50, rank: "S", title: "Peak Sovereign" },
 ];
 const STREAK_MILESTONES = [
   { days: 7, bonus: 100, label: "7 Day Warrior", emoji: "🔥" },
-  { days: 14, bonus: 200, label: "2 Week Hunter", emoji: "⚡" },
+  { days: 14, bonus: 200, label: "2 Week Grinder", emoji: "⚡" },
   { days: 30, bonus: 500, label: "Monthly Legend", emoji: "👑" },
   { days: 60, bonus: 1000, label: "Iron Will", emoji: "💎" },
-  { days: 100, bonus: 2000, label: "Shadow Sovereign", emoji: "🌑" },
+  { days: 100, bonus: 2000, label: "Peak Sovereign", emoji: "🌑" },
 ];
 const CONTINENT_MAP = {
   SE:"Europe",DE:"Europe",FR:"Europe",GB:"Europe",IT:"Europe",ES:"Europe",PL:"Europe",NL:"Europe",PT:"Europe",NO:"Europe",FI:"Europe",DK:"Europe",
@@ -46,7 +46,7 @@ const CONTINENT_MAP = {
 function getRank(level) { return [...RANKS].reverse().find(r => level >= r.minLevel) || RANKS[0]; }
 function getTodayString() { return new Date().toISOString().slice(0, 10); }
 function getYesterdayString() { const d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
-function generateHunterId() { return "HUNTER#" + Math.floor(1000 + Math.random() * 9000); }
+function generateHunterId() { return "PEAK#" + Math.floor(1000 + Math.random() * 9000); }
 async function requestNotificationPermission() {
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
@@ -57,7 +57,7 @@ function scheduleNotification(hour) {
   scheduled.setHours(hour, 0, 0, 0);
   if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1);
   setTimeout(() => {
-    if (Notification.permission === "granted") new Notification("⚡ Hunter System", { body: "Your daily quests await. Don't break your streak!", icon: "/vite.svg", tag: "daily-quest-reminder" });
+    if (Notification.permission === "granted") new Notification("⚡ Peakism", { body: "Your daily quests await. Reach your peak!", icon: "/icon-192.png", tag: "daily-quest-reminder" });
     scheduleNotification(hour);
   }, scheduled.getTime() - now.getTime());
 }
@@ -88,15 +88,15 @@ function AuthScreen() {
       <div style={{ width:"100%", maxWidth:380 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ fontSize:40, marginBottom:8 }}>⚡</div>
-          <h1 style={{ color:"#e8e8f0", fontSize:24, fontWeight:600, margin:0 }}>Hunter System</h1>
-          <p style={{ color:"#534AB7", margin:"6px 0 0", fontSize:14 }}>Arise and begin your journey</p>
+          <h1 style={{ color:"#e8e8f0", fontSize:28, fontWeight:700, margin:0, letterSpacing:2 }}>PEAKISM</h1>
+          <p style={{ color:"#534AB7", margin:"6px 0 0", fontSize:14 }}>Reach your peak.</p>
         </div>
         <div style={{ background:"#0f0f1a", border:"1px solid #1e1e2e", borderRadius:16, padding:24 }}>
           <div style={{ display:"flex", marginBottom:20, background:"#0a0a0f", borderRadius:8, padding:3 }}>
             <button onClick={() => setIsLogin(true)} style={{ flex:1, padding:"8px", borderRadius:6, border:"none", background:isLogin?"#534AB7":"transparent", color:isLogin?"#fff":"#666", cursor:"pointer", fontSize:14 }}>Login</button>
             <button onClick={() => setIsLogin(false)} style={{ flex:1, padding:"8px", borderRadius:6, border:"none", background:!isLogin?"#534AB7":"transparent", color:!isLogin?"#fff":"#666", cursor:"pointer", fontSize:14 }}>Sign Up</button>
           </div>
-          {!isLogin && <div style={{ marginBottom:14 }}><div style={{ fontSize:12, color:"#666", marginBottom:6 }}>Hunter Name</div><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your name" style={inp} /></div>}
+          {!isLogin && <div style={{ marginBottom:14 }}><div style={{ fontSize:12, color:"#666", marginBottom:6 }}>Your Name</div><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your name" style={inp} /></div>}
           <div style={{ marginBottom:14 }}><div style={{ fontSize:12, color:"#666", marginBottom:6 }}>Email</div><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="Enter your email" style={inp} /></div>
           <div style={{ marginBottom:20 }}><div style={{ fontSize:12, color:"#666", marginBottom:6 }}>Password</div><input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Enter your password" style={inp} /></div>
           {error && <div style={{ background:"#2a0a0a", border:"1px solid #5a1a1a", borderRadius:8, padding:"10px 12px", color:"#ff6b6b", fontSize:13, marginBottom:14 }}>{error}</div>}
@@ -113,7 +113,7 @@ function OnboardingScreen({ user, onComplete }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({ gender:"", body_type:"", goal:"", mode:"" });
   const steps = [
-    { question:"Choose your hunter type", subtitle:"This shapes your character avatar", options:[{value:"male",label:"Hunter",desc:"Male warrior",emoji:"⚔️"},{value:"female",label:"Huntress",desc:"Female warrior",emoji:"🗡️"}], key:"gender" },
+    { question:"Choose your character type", subtitle:"This shapes your avatar", options:[{value:"male",label:"Warrior",desc:"Male character",emoji:"⚔️"},{value:"female",label:"Huntress",desc:"Female character",emoji:"🗡️"}], key:"gender" },
     { question:"What does your body look like?", subtitle:"Be honest — your avatar will reflect this", options:[{value:"very_skinny",label:"Very Skinny",desc:"Quite thin",emoji:"🦴"},{value:"skinny",label:"Skinny",desc:"Lean, not muscular",emoji:"😤"},{value:"average",label:"Average",desc:"Normal build",emoji:"🧍"},{value:"chubby",label:"Chubby",desc:"Extra weight",emoji:"🙂"},{value:"overweight",label:"Overweight",desc:"Above ideal weight",emoji:"💪"}], key:"body_type" },
     { question:"What is your main goal?", subtitle:"This shapes your quest recommendations", options:[{value:"lose_weight",label:"Lose Weight",desc:"Burn fat",emoji:"🔥"},{value:"build_muscle",label:"Build Muscle",desc:"Get stronger",emoji:"💪"},{value:"both",label:"Both",desc:"Lose fat & gain muscle",emoji:"⚡"}], key:"goal" },
     { question:"Where will you train?", subtitle:"You can switch anytime", options:[{value:"home",label:"At Home",desc:"No equipment",emoji:"🏠"},{value:"gym",label:"At the Gym",desc:"Full equipment",emoji:"🏋️"}], key:"mode" },
@@ -154,7 +154,7 @@ function OnboardingScreen({ user, onComplete }) {
 // ─── AVATAR CUSTOMIZER ────────────────────────────────────────────────────────
 function AvatarScreen({ user, profile, onClose, onUpdate }) {
   const rank = getRank(profile?.level || 1).rank;
-  const RANK_TITLES = { E:"Awakened Hunter", D:"Iron Body", C:"Steel Warrior", B:"Shadow Blade", A:"Monarch", S:"Shadow Sovereign" };
+  const RANK_TITLES = { E:"Awakened", D:"Iron Body", C:"Steel Warrior", B:"Shadow Blade", A:"Monarch", S:"Peak Sovereign" };
   const nextRankInfo = RANKS.find(r => r.minLevel > (profile?.level || 1));
   const [tab, setTab] = useState("stats");
   const [custom, setCustom] = useState({
@@ -164,21 +164,15 @@ function AvatarScreen({ user, profile, onClose, onUpdate }) {
     skin_tone:  profile?.skin_tone  || "medium",
     armor_theme:profile?.armor_theme|| "purple",
   });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const maleHairs   = ["short","spiky","long","mohawk","curly","bald"];
+  const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
+  const maleHairs = ["short","spiky","long","mohawk","curly","bald"];
   const femaleHairs = ["long","short","spiky","bun","braid","curly"];
   const hairOptions = profile?.gender === "female" ? femaleHairs : maleHairs;
-
   async function saveCustomization() {
     setSaving(true);
     await supabase.from("profiles").update(custom).eq("id", user.id);
-    onUpdate(custom);
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
-    setSaving(false);
+    onUpdate(custom); setSaved(true); setTimeout(() => setSaved(false), 2000); setSaving(false);
   }
-
   function ColorRow({ label, options, field, colorMap }) {
     return (
       <div style={{ marginBottom:16 }}>
@@ -186,84 +180,61 @@ function AvatarScreen({ user, profile, onClose, onUpdate }) {
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           {options.map(opt => (
             <button key={opt} onClick={() => setCustom(p => ({ ...p, [field]:opt }))}
-              style={{ width:36, height:36, borderRadius:"50%", border:`3px solid ${custom[field]===opt?"#fff":"transparent"}`, background: colorMap ? colorMap[opt] : "transparent", cursor:"pointer", outline:"none", position:"relative" }}>
-              {!colorMap && <span style={{ fontSize:10, color:"#e8e8f0" }}>{opt.slice(0,3)}</span>}
-            </button>
+              style={{ width:36, height:36, borderRadius:"50%", border:`3px solid ${custom[field]===opt?"#fff":"transparent"}`, background:colorMap?colorMap[opt]:"transparent", cursor:"pointer", outline:"none" }} />
           ))}
         </div>
         <div style={{ fontSize:11, color:"#534AB7", marginTop:4, textTransform:"capitalize" }}>Selected: {custom[field]}</div>
       </div>
     );
   }
-
-  function HairRow() {
-    return (
-      <div style={{ marginBottom:16 }}>
-        <div style={{ fontSize:12, color:"#555", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Hair Style</div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {hairOptions.map(h => (
-            <button key={h} onClick={() => setCustom(p => ({ ...p, hair_style:h }))}
-              style={{ padding:"6px 12px", borderRadius:20, border:`1px solid ${custom.hair_style===h?"#534AB7":"#1e1e2e"}`, background:custom.hair_style===h?"#1a1035":"transparent", color:custom.hair_style===h?"#AFA9EC":"#555", cursor:"pointer", fontSize:12, textTransform:"capitalize" }}>{h}</button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  function ArmorRow() {
-    return (
-      <div style={{ marginBottom:16 }}>
-        <div style={{ fontSize:12, color:"#555", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Armor Theme</div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {Object.entries(ARMOR_THEMES).map(([key, theme]) => (
-            <button key={key} onClick={() => setCustom(p => ({ ...p, armor_theme:key }))}
-              style={{ padding:"6px 12px", borderRadius:20, border:`2px solid ${custom.armor_theme===key?theme.accent:"#1e1e2e"}`, background:custom.armor_theme===key?theme.secondary:"transparent", color:custom.armor_theme===key?theme.accent:"#555", cursor:"pointer", fontSize:12, textTransform:"capitalize" }}>{key}</button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={{ background:"#0a0a0f", minHeight:"100vh", color:"#e8e8f0", fontFamily:"sans-serif", maxWidth:420, margin:"0 auto", padding:"0 0 80px" }}>
       <div style={{ background:"#0f0f1a", padding:"16px 20px", borderBottom:"1px solid #1e1e2e", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={onClose} style={{ background:"transparent", border:"1px solid #1e1e2e", borderRadius:8, padding:"6px 12px", color:"#888", cursor:"pointer", fontSize:13 }}>← Back</button>
-        <div><div style={{ fontSize:16, fontWeight:500 }}>My Hunter</div><div style={{ fontSize:12, color:"#534AB7" }}>Rank {rank} — {RANK_TITLES[rank]}</div></div>
+        <div><div style={{ fontSize:16, fontWeight:500 }}>My Character</div><div style={{ fontSize:12, color:"#534AB7" }}>Rank {rank} — {RANK_TITLES[rank]}</div></div>
       </div>
-
-      {/* Live Avatar Preview */}
       <div style={{ padding:"20px", display:"flex", flexDirection:"column", alignItems:"center" }}>
         <div style={{ width:140, marginBottom:12 }}>
           <AvatarSVG rank={rank} bodyType={profile?.body_type||"average"} goal={profile?.goal||"both"} gender={profile?.gender||"male"} animated={true}
             hairStyle={custom.hair_style} hairColor={custom.hair_color} eyeColor={custom.eye_color} skinTone={custom.skin_tone} armorTheme={custom.armor_theme} />
         </div>
-        <div style={{ fontSize:20, fontWeight:600, marginBottom:2 }}>{profile?.username||"Hunter"}</div>
+        <div style={{ fontSize:20, fontWeight:600, marginBottom:2 }}>{profile?.username||"Warrior"}</div>
         <div style={{ fontSize:13, color:"#534AB7", marginBottom:2 }}>{RANK_TITLES[rank]}</div>
         <div style={{ fontSize:11, color:"#444" }}>{profile?.hunter_id||""}</div>
       </div>
-
-      {/* Tabs */}
       <div style={{ display:"flex", background:"#0f0f1a", borderBottom:"1px solid #1e1e2e", borderTop:"1px solid #1e1e2e" }}>
         {[["customize","🎨 Customize"],["stats","📊 Stats"],["ranks","👑 Ranks"]].map(([id,label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:"10px 4px", border:"none", background:"transparent", color:tab===id?"#AFA9EC":"#555", borderBottom:tab===id?"2px solid #534AB7":"2px solid transparent", cursor:"pointer", fontSize:12 }}>{label}</button>
         ))}
       </div>
-
-      {/* Customize Tab */}
       {tab === "customize" && (
         <div style={{ padding:"16px 20px" }}>
-          <HairRow />
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:12, color:"#555", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Hair Style</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {hairOptions.map(h => (
+                <button key={h} onClick={() => setCustom(p => ({ ...p, hair_style:h }))}
+                  style={{ padding:"6px 12px", borderRadius:20, border:`1px solid ${custom.hair_style===h?"#534AB7":"#1e1e2e"}`, background:custom.hair_style===h?"#1a1035":"transparent", color:custom.hair_style===h?"#AFA9EC":"#555", cursor:"pointer", fontSize:12, textTransform:"capitalize" }}>{h}</button>
+              ))}
+            </div>
+          </div>
           <ColorRow label="Hair Color" options={Object.keys(HAIR_COLORS)} field="hair_color" colorMap={HAIR_COLORS} />
           <ColorRow label="Eye Color" options={Object.keys(EYE_COLORS)} field="eye_color" colorMap={EYE_COLORS} />
           <ColorRow label="Skin Tone" options={Object.keys(SKIN_TONES)} field="skin_tone" colorMap={SKIN_TONES} />
-          <ArmorRow />
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:12, color:"#555", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Armor Theme</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {Object.entries(ARMOR_THEMES).map(([key, theme]) => (
+                <button key={key} onClick={() => setCustom(p => ({ ...p, armor_theme:key }))}
+                  style={{ padding:"6px 12px", borderRadius:20, border:`2px solid ${custom.armor_theme===key?theme.accent:"#1e1e2e"}`, background:custom.armor_theme===key?theme.secondary:"transparent", color:custom.armor_theme===key?theme.accent:"#555", cursor:"pointer", fontSize:12, textTransform:"capitalize" }}>{key}</button>
+              ))}
+            </div>
+          </div>
           <button onClick={saveCustomization} disabled={saving} style={{ width:"100%", background:saved?"#1a4a1a":"#534AB7", color:"#fff", border:"none", borderRadius:8, padding:"12px", fontSize:15, fontWeight:500, cursor:"pointer", marginTop:8 }}>
             {saved?"✓ Saved!":saving?"Saving...":"Save Appearance"}
           </button>
         </div>
       )}
-
-      {/* Stats Tab */}
       {tab === "stats" && (
         <div style={{ padding:"16px 20px" }}>
           <div style={{ background:"#0f0f1a", border:"1px solid #1e1e2e", borderRadius:12, padding:"14px 20px", marginBottom:16, display:"flex", justifyContent:"space-around" }}>
@@ -281,12 +252,10 @@ function AvatarScreen({ user, profile, onClose, onUpdate }) {
           </div>
         </div>
       )}
-
-      {/* Ranks Tab */}
       {tab === "ranks" && (
         <div style={{ padding:"16px 20px" }}>
           {RANKS.map(r => {
-            const unlocked = (profile?.level||1) >= r.minLevel, isCurrent = r.rank === rank;
+            const unlocked=(profile?.level||1)>=r.minLevel, isCurrent=r.rank===rank;
             return (
               <div key={r.rank} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, opacity:unlocked?1:0.4 }}>
                 <div style={{ width:32, height:32, borderRadius:8, background:isCurrent?"#1a1035":"#0a0a0f", border:`1.5px solid ${isCurrent?"#534AB7":"#1e1e2e"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:isCurrent?"#AFA9EC":"#555", fontWeight:700 }}>{r.rank}</div>
@@ -340,7 +309,7 @@ function GlobalChat({ user, profile, onClose }) {
   async function sendMessage() {
     if (!input.trim() || sending) return;
     setSending(true);
-    await supabase.from("chat_messages").insert({ user_id:user.id, username:profile?.username||"Hunter", rank:rank.rank, level:profile?.level||1, channel, country:profile?.country||"", continent:profile?.continent||"", message:input.trim() });
+    await supabase.from("chat_messages").insert({ user_id:user.id, username:profile?.username||"Warrior", rank:rank.rank, level:profile?.level||1, channel, country:profile?.country||"", continent:profile?.continent||"", message:input.trim() });
     setInput(""); setSending(false);
   }
   const RANK_COLORS = { E:"#888", D:"#4CAF50", C:"#2196F3", B:"#9C27B0", A:"#FF9800", S:"#FFD700" };
@@ -348,7 +317,7 @@ function GlobalChat({ user, profile, onClose }) {
     <div style={{ background:"#0a0a0f", minHeight:"100vh", color:"#e8e8f0", fontFamily:"sans-serif", maxWidth:420, margin:"0 auto", display:"flex", flexDirection:"column" }}>
       <div style={{ background:"#0f0f1a", padding:"16px 20px", borderBottom:"1px solid #1e1e2e", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={onClose} style={{ background:"transparent", border:"1px solid #1e1e2e", borderRadius:8, padding:"6px 12px", color:"#888", cursor:"pointer", fontSize:13 }}>← Back</button>
-        <div><div style={{ fontSize:16, fontWeight:500 }}>Hunter Chat</div><div style={{ fontSize:12, color:"#534AB7" }}>Global community</div></div>
+        <div><div style={{ fontSize:16, fontWeight:500 }}>Peakism Chat</div><div style={{ fontSize:12, color:"#534AB7" }}>Global community</div></div>
       </div>
       <div style={{ display:"flex", background:"#0f0f1a", borderBottom:"1px solid #1e1e2e" }}>
         {channels.map(ch => (
@@ -409,10 +378,10 @@ function SocialScreen({ user, profile, onClose }) {
     <div style={{ background:"#0a0a0f", minHeight:"100vh", color:"#e8e8f0", fontFamily:"sans-serif", maxWidth:420, margin:"0 auto", padding:"0 0 80px" }}>
       <div style={{ background:"#0f0f1a", padding:"16px 20px", borderBottom:"1px solid #1e1e2e", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={onClose} style={{ background:"transparent", border:"1px solid #1e1e2e", borderRadius:8, padding:"6px 12px", color:"#888", cursor:"pointer", fontSize:13 }}>← Back</button>
-        <div><div style={{ fontSize:16, fontWeight:500 }}>Social</div><div style={{ fontSize:12, color:"#534AB7" }}>Hunters worldwide</div></div>
+        <div><div style={{ fontSize:16, fontWeight:500 }}>Social</div><div style={{ fontSize:12, color:"#534AB7" }}>Peakism community</div></div>
       </div>
       <div style={{ background:"#0f0f1a", border:"1px solid #1e1e2e", borderRadius:10, margin:"12px 16px", padding:"12px 14px" }}>
-        <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>YOUR HUNTER ID</div>
+        <div style={{ fontSize:11, color:"#555", marginBottom:4 }}>YOUR PEAK ID</div>
         <div style={{ fontSize:18, fontWeight:700, color:"#AFA9EC", letterSpacing:1 }}>{profile?.hunter_id||"—"}</div>
         <div style={{ fontSize:11, color:"#444", marginTop:2 }}>Share this so friends can find you</div>
       </div>
@@ -447,12 +416,12 @@ function SocialScreen({ user, profile, onClose }) {
         )}
         {tab==="add" && (
           <div>
-            <div style={{ fontSize:13, color:"#666", marginBottom:8 }}>Enter a Hunter ID to add a friend</div>
+            <div style={{ fontSize:13, color:"#666", marginBottom:8 }}>Enter a Peak ID to add a friend</div>
             <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-              <input value={searchId} onChange={e=>setSearchId(e.target.value)} onKeyDown={e=>e.key==="Enter"&&searchHunter()} placeholder="HUNTER#1234" style={{ flex:1, background:"#0f0f1a", border:"1px solid #1e1e2e", borderRadius:8, padding:"10px 12px", color:"#e8e8f0", fontSize:14 }} />
+              <input value={searchId} onChange={e=>setSearchId(e.target.value)} onKeyDown={e=>e.key==="Enter"&&searchHunter()} placeholder="PEAK#1234" style={{ flex:1, background:"#0f0f1a", border:"1px solid #1e1e2e", borderRadius:8, padding:"10px 12px", color:"#e8e8f0", fontSize:14 }} />
               <button onClick={searchHunter} disabled={searching} style={{ background:"#534AB7", border:"none", borderRadius:8, padding:"10px 16px", color:"#fff", cursor:"pointer", fontSize:14 }}>Search</button>
             </div>
-            {searchResult==="notfound" && <div style={{ background:"#2a0a0a", border:"1px solid #5a1a1a", borderRadius:8, padding:"12px", color:"#ff6b6b", fontSize:13 }}>Hunter not found.</div>}
+            {searchResult==="notfound" && <div style={{ background:"#2a0a0a", border:"1px solid #5a1a1a", borderRadius:8, padding:"12px", color:"#ff6b6b", fontSize:13 }}>User not found.</div>}
             {searchResult&&searchResult!=="notfound" && (
               <div style={{ background:"#0f0f1a", border:"1px solid #534AB7", borderRadius:10, padding:"14px" }}>
                 <div style={{ fontSize:15, fontWeight:600, marginBottom:4 }}>{searchResult.username}</div>
@@ -481,7 +450,7 @@ function NotificationSettings({ user, profile, onSave, onClose }) {
   }
   async function testNotification() {
     const granted=await requestNotificationPermission();
-    if (granted) new Notification("⚡ Hunter System",{ body:"Stay consistent, Hunter!", icon:"/vite.svg" });
+    if (granted) new Notification("⚡ Peakism",{ body:"Stay consistent. Reach your peak!", icon:"/icon-192.png" });
   }
   return (
     <div style={{ background:"#0a0a0f", minHeight:"100vh", color:"#e8e8f0", fontFamily:"sans-serif", maxWidth:420, margin:"0 auto", padding:"0 0 80px" }}>
@@ -531,7 +500,7 @@ function QuestLibrary({ user, profile, onClose }) {
   }
   async function createQuest() {
     if (!form.name) return; setSaving(true);
-    await supabase.from("custom_quests").insert({ created_by:user.id, creator_name:profile?.username||"Hunter", name:form.name, description:form.description, xp:parseInt(form.xp), category:form.category, mode:form.mode, likes:0 });
+    await supabase.from("custom_quests").insert({ created_by:user.id, creator_name:profile?.username||"Warrior", name:form.name, description:form.description, xp:parseInt(form.xp), category:form.category, mode:form.mode, likes:0 });
     setForm({ name:"", description:"", xp:"50", category:"strength", mode:"both" });
     loadData(); setSaving(false); setTab("browse");
   }
@@ -745,7 +714,7 @@ function ProgressCharts({ user, profile, onClose }) {
     <div style={{ background:"#0a0a0f", minHeight:"100vh", color:"#e8e8f0", fontFamily:"sans-serif", maxWidth:420, margin:"0 auto", padding:"0 0 80px" }}>
       <div style={{ background:"#0f0f1a", padding:"16px 20px", borderBottom:"1px solid #1e1e2e", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={onClose} style={{ background:"transparent", border:"1px solid #1e1e2e", borderRadius:8, padding:"6px 12px", color:"#888", cursor:"pointer", fontSize:13 }}>← Back</button>
-        <div><div style={{ fontSize:16, fontWeight:500 }}>Progress</div><div style={{ fontSize:12, color:"#534AB7" }}>Your hunter journey</div></div>
+        <div><div style={{ fontSize:16, fontWeight:500 }}>Progress</div><div style={{ fontSize:12, color:"#534AB7" }}>Your peak journey</div></div>
       </div>
       {loading?<div style={{ textAlign:"center", padding:40, color:"#534AB7" }}>Loading...</div>:(
         <div style={{ padding:"16px 20px" }}>
@@ -855,7 +824,7 @@ export default function App() {
   async function handleLogout() { await supabase.auth.signOut(); }
 
   if (!user) return <AuthScreen />;
-  if (loading) return <div style={{ background:"#0a0a0f", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:"#534AB7", fontFamily:"sans-serif", fontSize:18 }}>⚡ Loading your profile...</div>;
+  if (loading) return <div style={{ background:"#0a0a0f", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:"#534AB7", fontFamily:"sans-serif", fontSize:18 }}>⚡ Loading Peakism...</div>;
   if (!profile?.setup_complete) return <OnboardingScreen user={user} onComplete={updates=>setProfile(p=>({...p,...updates}))} />;
   if (screen==="body") return <BodyLogger user={user} onClose={()=>setScreen("home")} />;
   if (screen==="nutrition") return <NutritionTracker user={user} onClose={()=>setScreen("home")} />;
@@ -893,7 +862,10 @@ export default function App() {
               hairStyle={profile?.hair_style||"short"} hairColor={profile?.hair_color||"black"} eyeColor={profile?.eye_color||"purple"}
               skinTone={profile?.skin_tone||"medium"} armorTheme={profile?.armor_theme||"purple"} animated={false} />
           </button>
-          <div><div style={{ fontSize:18, fontWeight:500 }}>{profile?.username||"Hunter"}</div><div style={{ fontSize:13, color:"#534AB7" }}>{rank.title}</div></div>
+          <div>
+            <div style={{ fontSize:18, fontWeight:500 }}>{profile?.username||"Warrior"}</div>
+            <div style={{ fontSize:13, color:"#534AB7" }}>{rank.title}</div>
+          </div>
         </div>
       </div>
 
@@ -903,7 +875,7 @@ export default function App() {
           <span style={{ fontSize:13, color:"#AFA9EC" }}>{xpIntoLevel} / 200 XP</span>
         </div>
         <div style={{ background:"#1a1a2e", borderRadius:4, height:8 }}><div style={{ background:"#534AB7", borderRadius:4, height:8, width:`${(xpIntoLevel/200)*100}%`, transition:"width 0.4s" }} /></div>
-        <div style={{ marginTop:6, fontSize:11, color:"#444" }}>{nextRank?`Next rank at Level ${nextRank.minLevel} — ${nextRank.rank} Rank`:"Max Rank — Shadow Sovereign"}</div>
+        <div style={{ marginTop:6, fontSize:11, color:"#444" }}>{nextRank?`Next rank at Level ${nextRank.minLevel} — ${nextRank.rank} Rank`:"Max Rank — Peak Sovereign"}</div>
       </div>
 
       <div style={{ padding:"10px 20px 0" }}>
@@ -962,9 +934,9 @@ export default function App() {
 
       <div style={{ padding:"12px 20px 0", display:"flex", flexDirection:"column", gap:8 }}>
         {[
-          { screen:"avatar", icon:"⚡", title:"My Hunter", sub:`Customize appearance • ${streak>0?`🔥 ${streak} day streak`:"Start your streak today"}` },
-          { screen:"social", icon:"🏆", title:"Leaderboard & Friends", sub:"Rankings, add friends, Hunter ID" },
-          { screen:"chat", icon:"💬", title:"Hunter Chat", sub:"World · Continent · Country chat" },
+          { screen:"avatar", icon:"⚡", title:"My Character", sub:`Customize appearance • ${streak>0?`🔥 ${streak} day streak`:"Start your streak today"}` },
+          { screen:"social", icon:"🏆", title:"Leaderboard & Friends", sub:"Rankings, add friends, Peak ID" },
+          { screen:"chat", icon:"💬", title:"Peakism Chat", sub:"World · Continent · Country chat" },
           { screen:"quests", icon:"⚔️", title:"Quest Library", sub:"Browse & create custom quests" },
           { screen:"progress", icon:"📊", title:"Progress Charts", sub:"Weight, quests & history" },
           { screen:"nutrition", icon:"🥗", title:"Nutrition Tracker", sub:"Log meals, calories & macros" },
